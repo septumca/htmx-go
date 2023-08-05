@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTMX & Go - Demo</title>
+    <script src="https://unpkg.com/htmx.org@1.9.2" integrity="sha384-L6OqL9pRWyyFU3+/bjdSri+iIphTN/bvYyM37tICVyOJkWZLpP2vGn6VUEXgzg6h" crossorigin="anonymous"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .fade-in.htmx-added {
+            opacity: 0;
+        }
+        .fade-in {
+            opacity: 1;
+            transition: opacity 0.5s ease-out;
+        }
+        .fade-out.htmx-swapping {
+            opacity: 0;
+            transition: opacity 0.5s ease-out;
+        }
+    </style>
+</head>
+<body class="p-2">
+    <div class="grid gap-4 grid-cols-6">
+        <div class="col-span-2">
+            <h1 class="mb-2 text-lg font-semibold text-gray-900 dark:text-white">Add Story</h1>
+
+            <form hx-post="/story" hx-target="#story-list" hx-swap="beforeend" hx-indicator="#spinner">
+                <div class="mb-2">
+                    <label for="story-title">Title</label>
+                    <input required type="text" name="title" id="story-title" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" />
+                </div>
+                <div class="mb-3">
+                    <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white" for="story-creator">Creator</label>
+                    <select required id="story-creator" name="creator" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500">
+                        <option value="" selected>Choose a user</option>
+                        {{ range . }}
+                            <option value="{{ .ID }}">{{ .Username }}</option>
+                        {{ end }}
+                    </select>
+                    <!-- <label for="story-creator">Creator</label>
+                    <input required type="text" name="creator" id="story-creator" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" /> -->
+                </div>
+
+                <button type="submit" class="rounded-lg text-white bg-blue-700 hover:bg-blue-800 4focus:ring-4 focus:ring-blue-300 px-2.5 py-2 mr-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 focus:outline-none dark:focus:ring-blue-800 inline-flex items-center">
+                    Submit
+                    {{template "spinner" "fill-blue-600"}}
+                </button>
+            </form>
+        </div>
+
+        <div hx-get="/story" hx-trigger="load" class="col-span-4"></div>
+    </div>
+
+</body>
+</html>
