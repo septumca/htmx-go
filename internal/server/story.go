@@ -1,12 +1,13 @@
 package server
 
 import (
-    "log"
-    "net/http"
-    "html/template"
-    "database/sql"
+	"database/sql"
+	"html/template"
+	"log"
+	"net/http"
+	"zmtwc/sk/internal/auth"
 
-    "github.com/gorilla/mux"
+	"github.com/gorilla/mux"
 )
 
 type Story struct {
@@ -49,30 +50,34 @@ func StoryListHandler (w http.ResponseWriter, r *http.Request) {
 
     // fmt.Printf("context: %v\n", context)
 
-    tmpl := template.Must(template.ParseFiles("templates/story-list.html", "templates/story-list-element.html", "templates/spinner.html"))
+    tmpl := template.Must(template.ParseFiles("app/templates/story-list.html", "app/templates/story-list-element.html", "app/templates/spinner.html"))
     tmpl.Execute(w, context)
 }
 
 func CreateStoryHandler (w http.ResponseWriter, r *http.Request) {
-    title := r.PostFormValue("title")
-    creator := r.PostFormValue("creator")
-
     db, err := OpenDB()
     if err != nil {
         log.Fatal(err)
     }
     defer db.Close()
+    _, err = auth.IsSessionValid(db, r);
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    title := r.PostFormValue("title")
+    creator := r.PostFormValue("creator")
 
     row := db.QueryRow("SELECT user.username FROM User WHERE user.id = $1", creator)
     var username string
-	err = row.Scan(&username)
+    err = row.Scan(&username)
     if err == sql.ErrNoRows {
-		// http.NotFound(w, r)
-		log.Fatal(err)
-	} else if err != nil {
-		// http.Error(w, http.StatusText(500), 500)
-		log.Fatal(err)
-	}
+        // http.NotFound(w, r)
+        log.Fatal(err)
+    } else if err != nil {
+        // http.Error(w, http.StatusText(500), 500)
+        log.Fatal(err)
+    }
 
     result, err := db.Exec("INSERT INTO story (title, creator) VALUES($1, $2)", title, creator)
     if err != nil {
@@ -86,8 +91,8 @@ func CreateStoryHandler (w http.ResponseWriter, r *http.Request) {
         log.Fatal(err)
     }
 
-    tmpl := template.Must(template.New("story-list-element").ParseFiles("templates/story-list-element.html"))
-    template.Must(tmpl.New("spinner").ParseFiles("templates/spinner.html"))
+    tmpl := template.Must(template.New("story-list-element").ParseFiles("app/templates/story-list-element.html"))
+    template.Must(tmpl.New("spinner").ParseFiles("app/templates/spinner.html"))
 
     err = tmpl.ExecuteTemplate(w, "story-list-element", Story{ID: id, Title: title, Creator: username})
     if err != nil {

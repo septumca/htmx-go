@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTMX & Go - Demo</title>
+    <script src="https://unpkg.com/htmx.org@1.9.2" integrity="sha384-L6OqL9pRWyyFU3+/bjdSri+iIphTN/bvYyM37tICVyOJkWZLpP2vGn6VUEXgzg6h" crossorigin="anonymous"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js" integrity="sha512-E8QSvWZ0eCLGk4km3hxSsNmGWbLtSCSUcewDQPQWZF6pEU8GlT8a5fF32wOl1i8ftdMhssTrF/OhyGWwonTcXA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+</head>
+<body class="p-2">
+    <form id="login-form" hx-post="/login" hx-target="body" hx-indicator="#spinner">
+        <div class="mb-2">
+            <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white" for="username">Username</label>
+            <input required type="text" name="username" id="username" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" />
+        </div>
+        <div class="mb-3">
+            <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white" for="password">Password</label>
+            <input required type="password" name="password" id="password" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" />
+        </div>
+
+        <button
+            type="submit"
+            class="rounded-lg text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 px-2.5 py-2 mr-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700
+            focus:outline-none dark:focus:ring-blue-800 inline-flex items-center"
+        >
+            Login
+            <span id="spinner" class="htmx-indicator">
+                {{template "spinner-submit" "spinner"}}
+            </span>
+        </button>
+    </form>
+    <script>
+        htmx.on('#login-form', 'htmx:configRequest', function(evt) {
+            evt.detail.parameters.password = CryptoJS.SHA256(evt.detail.parameters.password).toString(CryptoJS.enc.Hex);
+        });
+    </script>
+</body>
+</html>
