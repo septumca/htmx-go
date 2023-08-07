@@ -1,35 +1,58 @@
 package auth
 
 import (
-    "net/http"
-    "time"
-    "golang.org/x/crypto/bcrypt"
-    "database/sql"
-    "errors"
-    "strings"
-    "github.com/google/uuid"
+	"database/sql"
+	"errors"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 )
 
-func IsSessionValid(db *sql.DB, r *http.Request) (int64, error) {
-    cookieHeader := r.Header.Get("Cookie")
-
+func GetSessionID(cookieHeader string) (string, error) {
     for _, c := range strings.Split(cookieHeader, ",") {
         cookieVals := strings.Split(c, ":")
         if cookieVals[0] == "session-id" {
-            row := db.QueryRow("SELECT user, valid_to FROM access_token WHERE token = $1", cookieVals[1])
-            var validTo int64
-            var userID int64
-            err := row.Scan(&userID, &validTo)
-            if err != nil {
-                return 0, err
-            }
-            if time.Now().Unix() > validTo {
-                return 0, errors.New("Token no longer valid")
-            }
-            return userID, nil
+            return cookieVals[1], nil
         }
     }
-    return 0, errors.New("Cannot find session-id token")
+    return "", errors.New("Cannot find session-id token")
+}
+
+func GetSessionUser(db *sql.DB, sessionID string) (int64, string, error) {
+    row := db.QueryRow(`
+        SELECT
+            access_token.user,
+            user.username,
+            access_token.valid_to
+        FROM access_token
+        JOIN user ON user.id = access_token.user
+        WHERE access_token.token = $1`,
+        sessionID,
+    )
+    var validTo int64
+    var userID int64
+    var userName string
+    err := row.Scan(&userID, &userName, &validTo)
+    if err != nil {
+        return 0, "", err
+    }
+    if time.Now().Unix() > validTo {
+        return 0, "", errors.New("Token no longer valid")
+    }
+    return userID, userName, nil
+}
+
+func ValidateSession(db *sql.DB, r *http.Request) (int64, string, error) {
+    cookieHeader := r.Header.Get("Cookie")
+
+    sessionID, err := GetSessionID(cookieHeader)
+    if err != nil {
+        return 0, "", err
+    }
+    return GetSessionUser(db, sessionID)
 }
 
 func SavePasswordForUser(db *sql.DB, username string, password string) (int64, error) {
@@ -88,4 +111,26 @@ func IsPasswordMatching(db *sql.DB, username string, password string) (int64, er
     }
 
     return userID, nil
+}
+
+func Logout(db *sql.DB, r *http.Request) error {
+    userID, _, err := ValidateSession(db, r)
+
+    if err != nil {
+        return err;
+    }
+    result, err := db.Exec("DELETE FROM access_token WHERE user = $1", userID)
+    if err != nil {
+        return err
+    }
+
+    rowsAffected, err := result.RowsAffected()
+    if err != nil {
+        return err
+    }
+    if rowsAffected != 1 {
+        return errors.New("Error clearing up session ID")
+    }
+
+    return nil
 }

@@ -1,7 +1,7 @@
 package server
 
 import (
-	"database/sql"
+	"errors"
 	"html/template"
 	"log"
 	"net/http"
@@ -14,6 +14,7 @@ type Story struct {
     ID int64
     Title string
     Creator string
+    CanBeDeleted bool
 }
 
 func StoryListHandler (w http.ResponseWriter, r *http.Request) {
@@ -25,7 +26,8 @@ func StoryListHandler (w http.ResponseWriter, r *http.Request) {
     }
     defer db.Close()
 
-    rows, err := db.Query("SELECT story.id, story.title, user.username FROM story JOIN user on story.creator = user.id")
+    userID, _, sessionErr := auth.ValidateSession(db, r);
+    rows, err := db.Query("SELECT story.id, story.title, story.creator, user.username FROM story JOIN user on story.creator = user.id")
     if err != nil {
         log.Fatal(err)
     }
@@ -34,21 +36,21 @@ func StoryListHandler (w http.ResponseWriter, r *http.Request) {
     for rows.Next() {
         var id int64
         var title string
-        var creator string
+        var creatorName string
+        var creatorID int64
 
-        err = rows.Scan(&id, &title, &creator)
+        err = rows.Scan(&id, &title, &creatorID, &creatorName)
         if err != nil {
             log.Fatal(err)
         }
 
-        stories = append(stories, Story { ID: id, Title: title, Creator: creator })
+        canBeDeleted := sessionErr == nil && userID == creatorID
+        stories = append(stories, Story { ID: id, Title: title, Creator: creatorName, CanBeDeleted: canBeDeleted })
     }
 
     context := map[string][]Story{
         "Stories": stories,
     }
-
-    // fmt.Printf("context: %v\n", context)
 
     tmpl := template.Must(template.ParseFiles("app/templates/story-list.html", "app/templates/story-list-element.html", "app/templates/spinner.html"))
     tmpl.Execute(w, context)
@@ -57,29 +59,18 @@ func StoryListHandler (w http.ResponseWriter, r *http.Request) {
 func CreateStoryHandler (w http.ResponseWriter, r *http.Request) {
     db, err := OpenDB()
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, http.StatusText(500), 500)
+        return
     }
     defer db.Close()
-    _, err = auth.IsSessionValid(db, r);
+    userID, userName, err := auth.ValidateSession(db, r);
     if err != nil {
         log.Fatal(err)
     }
-
     title := r.PostFormValue("title")
-    creator := r.PostFormValue("creator")
 
-    row := db.QueryRow("SELECT user.username FROM User WHERE user.id = $1", creator)
-    var username string
-    err = row.Scan(&username)
-    if err == sql.ErrNoRows {
-        // http.NotFound(w, r)
-        log.Fatal(err)
-    } else if err != nil {
-        // http.Error(w, http.StatusText(500), 500)
-        log.Fatal(err)
-    }
 
-    result, err := db.Exec("INSERT INTO story (title, creator) VALUES($1, $2)", title, creator)
+    result, err := db.Exec("INSERT INTO story (title, creator) VALUES($1, $2)", title, userID)
     if err != nil {
         // http.Error(w, http.StatusText(500), 500)
         log.Fatal(err)
@@ -94,7 +85,7 @@ func CreateStoryHandler (w http.ResponseWriter, r *http.Request) {
     tmpl := template.Must(template.New("story-list-element").ParseFiles("app/templates/story-list-element.html"))
     template.Must(tmpl.New("spinner").ParseFiles("app/templates/spinner.html"))
 
-    err = tmpl.ExecuteTemplate(w, "story-list-element", Story{ID: id, Title: title, Creator: username})
+    err = tmpl.ExecuteTemplate(w, "story-list-element", Story{ID: id, Title: title, Creator: userName, CanBeDeleted: true })
     if err != nil {
         log.Fatal(err)
     }
@@ -110,15 +101,24 @@ func DeleteStoryHandler(w http.ResponseWriter, r *http.Request) {
     }
     defer db.Close()
 
-    result, err := db.Exec("DELETE FROM story WHERE id = $1", id)
+    userID, _, err := auth.ValidateSession(db, r);
+    if err != nil {
+        // http.Error(w, http.StatusText(500), 500)
+        log.Fatal(err)
+    }
+
+    result, err := db.Exec("DELETE FROM story WHERE id = $1 and creator = $2", id, userID)
     if err != nil {
         // http.Error(w, http.StatusText(500), 500)
         log.Fatal(err)
     }
 
     rowsAffected, err := result.RowsAffected()
-    if err != nil || rowsAffected != 1 {
+    if err != nil {
         log.Fatal(err)
+    }
+    if rowsAffected != 1 {
+        log.Fatal(errors.New("Error deleting story"))
     }
     w.WriteHeader(http.StatusOK)
 }
