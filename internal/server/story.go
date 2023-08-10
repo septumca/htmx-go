@@ -305,17 +305,31 @@ func ChangeStoryHandler (w http.ResponseWriter, r *http.Request) {
         log.Fatal(err)
     }
     defer db.Close()
-
-    //TODO: edit database data
-
-    userID, _, err := auth.ValidateSession(db, r);
+    title := r.PostFormValue("title")
+    description := r.PostFormValue("description")
+    startTime, err := strconv.ParseInt(r.PostFormValue("time"), 10, 64)
     if err != nil {
         log.Fatal(err)
     }
-    story, err := GetStoryData(db, storyID, userID)
+    userID, userName, sessionErr := auth.ValidateSession(db, r);
+    if sessionErr != nil {
+        log.Fatal(err)
+    }
+
+    err = UpdateStory(db, storyID, userID, title, description, startTime)
+    if err != nil {
+        log.Fatal(err)
+    }
 
     tmpl := template.Must(template.ParseFiles("app/templates/story-detail.html", "app/templates/spinner.html"))
-    err = tmpl.ExecuteTemplate(w, "story-detail-view", StoryViewPageData { Story: story })
+    err = tmpl.ExecuteTemplate(w, "story-detail-view", StoryViewPageData { Story: Story{
+        ID: storyID,
+        Title: title,
+        Description: description,
+        StartTime: time.Unix(startTime, 0).Format("02. 01. 2006 15:04"),
+        Creator: userName,
+        IsStoryOwner: true,
+    }})
     if err != nil {
         log.Fatal(err)
     }
@@ -596,9 +610,31 @@ func DeleteStoryTaskHandler (w http.ResponseWriter, r *http.Request) {
     }
 }
 
+func UpdateStory(db *sql.DB, storyID int64, userID int64, title string, description string, time int64) error {
+    result, err := db.Exec(
+        "UPDATE story SET title = $1, description = $2, start_time = $3, status = 1 WHERE id = $4 AND creator_id = $5",
+        title, description, time, storyID, userID,
+    )
+    if err != nil {
+        return err
+    }
+
+    rowsAffected, err := result.RowsAffected()
+    if err != nil {
+        return err
+    }
+    if rowsAffected != 1 {
+        return errors.New("Error updating story")
+    }
+    return nil
+}
+
 func FinalizeCreateStoryHandler (w http.ResponseWriter, r *http.Request) {
     vars := mux.Vars(r)
-    id := vars["id"]
+    id, err := strconv.ParseInt(vars["id"], 10, 64)
+    if err != nil {
+        log.Fatal(err)
+    }
     db, err := OpenDB()
     if err != nil {
         http.Error(w, http.StatusText(500), 500)
@@ -611,23 +647,14 @@ func FinalizeCreateStoryHandler (w http.ResponseWriter, r *http.Request) {
     }
     title := r.PostFormValue("title")
     description := r.PostFormValue("description")
-    time := r.PostFormValue("time")
-
-    result, err := db.Exec(
-        "UPDATE story SET title = $1, description = $2, start_time = $3, status = 1 WHERE id = $4 AND creator_id = $5",
-        title, description, time, id, userID,
-    )
-    if err != nil {
-        // http.Error(w, http.StatusText(500), 500)
-        log.Fatal(err)
-    }
-
-    rowsAffected, err := result.RowsAffected()
+    time, err := strconv.ParseInt(r.PostFormValue("time"), 10, 64)
     if err != nil {
         log.Fatal(err)
     }
-    if rowsAffected != 1 {
-        log.Fatal(errors.New("Error updating entry"))
+
+    err = UpdateStory(db, id, userID, title, description, time)
+    if err != nil {
+        log.Fatal(err)
     }
 
     w.Header().Add("HX-Trigger", "reload-stories")

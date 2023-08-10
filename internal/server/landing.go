@@ -35,7 +35,6 @@ func DoRegisterHandler (w http.ResponseWriter, r *http.Request) {
     if err != nil {
         log.Println(err)
     }
-    log.Printf("Registration and login successfull")
     w.Header().Add("HX-Redirect", "/")
     w.Header().Add("Set-Cookie", "session-id:"+sessionID)
 }
@@ -61,7 +60,6 @@ func DoLoginHandler (w http.ResponseWriter, r *http.Request) {
 
     sessionID, err := auth.GenerateSessionID(db, userID)
     if err == nil {
-        log.Printf("Login successfull")
         w.Header().Add("HX-Redirect", "/")
         w.Header().Add("Set-Cookie", "session-id:"+sessionID)
         tmpl := template.Must(template.ParseFiles("app/templates/header.html"))
