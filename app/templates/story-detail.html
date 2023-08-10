@@ -1,20 +1,31 @@
-<div class="fade-out fade-in p-4 bg-gray-50">
-    <div class="flex">
-        <div class="grow">
-            <time>{{ .Story.StartTime }}</time>
-            <h1 class="mb-2 text-lg font-semibold text-gray-900">{{ .Story.Title }}</h1>
+<div id="story-container" class="fade-out fade-in p-4 bg-gray-50">
+    <div id="story-data">
+        {{block "story-detail-view" .}}
+        <div class="flex">
+            <div class="grow">
+                <time>{{ .Story.StartTime }}</time>
+                <h1 class="mb-2 text-lg font-semibold text-gray-900">{{ .Story.Title }}</h1>
+            </div>
+            <div>{{ .Story.Creator }}</div>
         </div>
-        <div>{{ .Story.Creator }}</div>
+        {{ if .Story.IsStoryOwner }}
+            <button
+                hx-delete="/story/{{ .Story.ID }}"
+                class="rounded-lg text-white bg-red-700 hover:bg-red-800 focus:ring-4 focus:ring-red-300 px-2.5 py-2 mr-2 mb-2 focus:outline-none inline-flex items-center">
+                Delete
+                {{template "spinner-delete"}}
+            </button>
+            <button
+                hx-get="/view/story/{{ .Story.ID }}/edit"
+                hx-target="#story-data"
+                class="rounded-lg text-white bg-blue-700 hover:bg-blue-800 4focus:ring-4 focus:ring-blue-300 px-2.5 py-2 mr-2 mb-2 focus:outline-none inline-flex items-center">
+                Edit
+                {{template "spinner-submit"}}
+            </button>
+        {{end}}
+        <p class="mb-3 font-normal text-gray-700">{{ .Story.Description }}</p>
+        {{end}}
     </div>
-    {{ if .Story.IsStoryOwner }}
-        <button
-            hx-delete="/story/{{ .Story.ID }}"
-            class="rounded-lg text-white bg-red-700 hover:bg-red-800 focus:ring-4 focus:ring-red-300 px-2.5 py-2 mr-2 mb-2 focus:outline-none inline-flex items-center">
-            Delete
-            {{template "spinner-delete"}}
-        </button>
-    {{end}}
-    <p class="mb-3 font-normal text-gray-700">{{ .Story.Description }}</p>
     <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 mb-3 gap-1">
         {{ range .Tasks }}
             {{template "task-list-element-view.html" .}}
@@ -27,3 +38,64 @@
         Back
     </button>
 </div>
+
+{{define "story-detail-edit"}}
+    <form id="edit-story-form" hx-put="/story/{{ .ID }}" hx-target="#story-data" hx-indicator="#create-story-spinner">
+        <div class="mb-2">
+            <label for="story-title">Title</label>
+            <input
+                required
+                type="text"
+                placeholder="Title"
+                name="title"
+                id="story-title"
+                value="{{.Title}}"
+                class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
+            />
+        </div>
+        <div class="mb-2">
+            <label for="story-time">Start date</label>
+            <input
+                required
+                id="story-time"
+                type="datetime-local"
+                value="{{.StartTime}}"
+                name="time"
+                class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
+            />
+        </div>
+
+        <div class="mb-2">
+            <label for="story-description">Description</label>
+            <textarea
+                id="story-description"
+                name="description"
+                rows="6"
+                class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Description..."
+            >{{.Description}}</textarea>
+        </div>
+
+        <button
+            type="submit"
+            hx-target="#story-data"
+            class="rounded-lg text-white bg-blue-700 hover:bg-blue-800 4focus:ring-4 focus:ring-blue-300 px-2.5 py-2 mr-2 mb-2 focus:outline-none inline-flex items-center"
+        >
+            Save
+            {{template "spinner-submit" "create-story-spinner"}}
+        </button>
+        <button
+            hx-get="/story/{{ .ID }}"
+            hx-target="#story-container"
+            class="rounded-lg text-white bg-blue-700 hover:bg-blue-800 4focus:ring-4 focus:ring-blue-300 px-2.5 py-2 mr-2 mb-2 focus:outline-none inline-flex items-center"
+        >
+            Cancel
+        </button>
+
+        <script>
+            htmx.on('#edit-story-form', 'htmx:configRequest', function(evt) {
+                evt.detail.parameters.time = new Date(evt.detail.parameters.time).getTime() / 1000;
+            });
+        </script>
+    </form>
+{{end}}

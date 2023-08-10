@@ -180,19 +180,7 @@ func GetStoryTasks (db *sql.DB, storyID int64, userID int64, isStoryOwner bool, 
     return tasks, nil
 }
 
-func StoryDetailHandler (w http.ResponseWriter, r *http.Request) {
-    vars := mux.Vars(r)
-    storyID, err := strconv.ParseInt(vars["id"], 10, 64)
-    if err != nil {
-        log.Fatal(err)
-    }
-    db, err := OpenDB()
-    if err != nil {
-        log.Fatal(err)
-    }
-    defer db.Close()
-
-    userID, _, sessionErr := auth.ValidateSession(db, r);
+func GetStoryData(db *sql.DB, storyID int64, userID int64) (Story, error) {
     row := db.QueryRow(`
         SELECT
             story.id,
@@ -216,9 +204,9 @@ func StoryDetailHandler (w http.ResponseWriter, r *http.Request) {
     var descriptionOption sql.NullString
     var startTimeOption sql.NullInt64
 
-    err = row.Scan(&id, &title, &creatorName, &creatorID, &descriptionOption, &startTimeOption)
+    err := row.Scan(&id, &title, &creatorName, &creatorID, &descriptionOption, &startTimeOption)
     if err != nil {
-        log.Fatal(err)
+        return Story{}, err
     }
 
     description := ""
@@ -230,21 +218,134 @@ func StoryDetailHandler (w http.ResponseWriter, r *http.Request) {
         startTime = time.Unix(startTimeOption.Int64, 0).Format("02. 01. 2006 15:04")
     }
 
-    isStoryOwner := sessionErr == nil && userID == creatorID
+    return Story{
+        ID: id,
+        Title: title,
+        Description: description,
+        StartTime: startTime,
+        Creator: creatorName,
+        IsStoryOwner: creatorID == userID,
+    }, nil
+}
+
+type StoryEditPageData struct {
+    ID int64
+    Title string
+    StartTime string
+    Description string
+}
+
+func StoryEditPageHandler (w http.ResponseWriter, r *http.Request) {
+    vars := mux.Vars(r)
+    storyID, err := strconv.ParseInt(vars["id"], 10, 64)
+    if err != nil {
+        log.Fatal(err)
+    }
+    db, err := OpenDB()
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer db.Close()
+
+    _, _, err = auth.ValidateSession(db, r);
+    if err != nil {
+        log.Fatal(err)
+    }
+    row := db.QueryRow(`
+        SELECT
+            story.id,
+            story.title,
+            story.description,
+            story.start_time
+        FROM story
+        WHERE story.id = $1`,
+        storyID,
+    )
+
+    var id int64
+    var title string
+    var descriptionOption sql.NullString
+    var startTime int64
+
+    err = row.Scan(&id, &title, &descriptionOption, &startTime)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    description := ""
+    if descriptionOption.Valid {
+        description = descriptionOption.String
+    }
+    startTimeString := time.Unix(startTime, 0).Format("2006-01-02T15:04")
+
+    tmpl := template.Must(template.ParseFiles("app/templates/story-detail.html", "app/templates/spinner.html"))
+    err = tmpl.ExecuteTemplate(w, "story-detail-edit", StoryEditPageData {
+        ID: id,
+        Title: title,
+        Description: description,
+        StartTime: startTimeString,
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+}
+
+type StoryViewPageData struct {
+    Story Story
+}
+
+func ChangeStoryHandler (w http.ResponseWriter, r *http.Request) {
+    vars := mux.Vars(r)
+    storyID, err := strconv.ParseInt(vars["id"], 10, 64)
+    if err != nil {
+        log.Fatal(err)
+    }
+    db, err := OpenDB()
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer db.Close()
+
+    //TODO: edit database data
+
+    userID, _, err := auth.ValidateSession(db, r);
+    if err != nil {
+        log.Fatal(err)
+    }
+    story, err := GetStoryData(db, storyID, userID)
+
+    tmpl := template.Must(template.ParseFiles("app/templates/story-detail.html", "app/templates/spinner.html"))
+    err = tmpl.ExecuteTemplate(w, "story-detail-view", StoryViewPageData { Story: story })
+    if err != nil {
+        log.Fatal(err)
+    }
+}
+
+func StoryDetailHandler (w http.ResponseWriter, r *http.Request) {
+    vars := mux.Vars(r)
+    storyID, err := strconv.ParseInt(vars["id"], 10, 64)
+    if err != nil {
+        log.Fatal(err)
+    }
+    db, err := OpenDB()
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer db.Close()
+
+    userID, _, sessionErr := auth.ValidateSession(db, r);
+
+    story, err := GetStoryData(db, storyID, userID)
+    if err != nil {
+        log.Fatal(err)
+    }
     isUserLoggedIn := sessionErr == nil
-    tasks, err := GetStoryTasks(db, id, userID, isStoryOwner, isUserLoggedIn)
+    tasks, err := GetStoryTasks(db, storyID, userID, story.IsStoryOwner, isUserLoggedIn)
 
     tmpl := template.Must(template.ParseFiles("app/templates/story-detail.html", "app/templates/task-list-element-view.html", "app/templates/task-list-element.html", "app/templates/spinner.html"))
     err = tmpl.Execute(w, StoryDetail {
         IsUserLoggedIn: isUserLoggedIn,
-        Story: Story {
-            ID: id,
-            Title: title,
-            Description: description,
-            StartTime: startTime,
-            Creator: creatorName,
-            IsStoryOwner: isStoryOwner,
-        },
+        Story: story,
         Tasks: tasks,
     })
     if err != nil {

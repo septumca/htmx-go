@@ -21,6 +21,7 @@ func main() {
 
     r.HandleFunc("/view/header", server.HeaderHandler).Methods("GET")
     r.HandleFunc("/view/story", server.StoryListHandler).Methods("GET")
+    r.HandleFunc("/view/story/{id}/edit", server.StoryEditPageHandler).Methods("GET")
     r.HandleFunc("/view/create_story", server.CreateStoryPage).Methods("GET")
 
     r.HandleFunc("/login", server.DoLoginHandler).Methods("POST")
@@ -31,6 +32,7 @@ func main() {
     r.HandleFunc("/task/{id}", server.DeleteStoryTaskHandler).Methods("DELETE")
     r.HandleFunc("/task/{id}", server.ChangeStoryTaskHandler).Methods("PUT")
     r.HandleFunc("/story/{id}/finalize", server.FinalizeCreateStoryHandler).Methods("PUT")
+    r.HandleFunc("/story/{id}", server.ChangeStoryHandler).Methods("PUT")
     r.HandleFunc("/story/{id}", server.DeleteStoryHandler).Methods("DELETE")
     r.HandleFunc("/story/{id}", server.StoryDetailHandler).Methods("GET")
 
