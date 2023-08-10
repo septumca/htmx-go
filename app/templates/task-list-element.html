@@ -1,33 +1,40 @@
 {{define "task-list-element-base"}}
-<div id="task-element-{{ .ID }}" class="fade-out fade-in m-1 max-w-sm p-6 bg-white border border-gray-200 rounded-lg shadow">
-    <div>{{ .Name }}</div>
+<div
+    id="task-element-{{ .ID }}"
+    class="fade-out fade-in my-1 p-2.5 w-full bg-white border border-gray-200 rounded-lg shadow"
+>
+    <div class="flex">
+        <span class="font-semibold text-gray-900 grow">
+            {{ .Name }}&nbsp;
+            {{ .SlotsAssigned }}/{{ .SlotsTotal }}
+        </span>
+        {{ if .IsStoryOwner }}
+            <button
+                hx-delete="/task/{{ .ID }}"
+                hx-target="#task-element-{{ .ID }}"
+                hx-swap="outerHTML swap:0.5s"
+                class="text-white bg-red-700 hover:bg-red-800 focus:ring-4 focus:ring-red-300 px-1 focus:outline-none inline-flex items-center"
+            >
+                Delete
+                {{template "spinner-delete"}}
+            </button>
+        {{end}}
+    </div>
+    <div>{{ .Description }}</div>
+    {{ if .IsStoryOwner }}
+        {{ range .AssignmentList }}
+            <div>{{ .AssigneeName }}</div>
+        {{ end }}
+    {{ end }}
     {{ if .IsUserLoggedIn }}
         {{block "template-controls" .}}{{end}}
     {{ end }}
-    {{ if .IsStoryOwner }}
-        <button
-            type="button"
-            class="inline-flex items-center p-1 ml-2 text-sm text-blue-400 bg-transparent rounded-sm hover:bg-blue-200 hover:text-blue-900"
-            aria-label="Remove"
-            hx-delete="/story_task/{{ .ID }}"
-            hx-target="#task-element-{{ .ID }}"
-            hx-swap="outerHTML swap:0.5s"
-        >
-            <svg class="w-2 h-2" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14">
-            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6"/>
-            </svg>
-            <span class="sr-only">
-                Delete Task
-                {{template "spinner-delete"}}
-            </span>
-        </button>
-    {{end}}
 </div>
 {{end}}
 
 {{define "button-join"}}
 <button
-    hx-put="/story_task/{{.ID}}" hx-target="#template-controls-{{.ID}}" hx-vals='{"action": "join"}' hx-swap="outerHTML"
+    hx-put="/task/{{.ID}}" hx-vals='{"action": "join"}' hx-target="#task-element-{{ .ID }}" hx-swap="outerHTML"
     class="text-sm uppercase items-center p-1 text-white bg-blue-700 hover:bg-blue-800 4focus:ring-4 focus:ring-blue-300 focus:outline-none inline-flex items-center"
 >
     Join
@@ -36,7 +43,7 @@
 
 {{define "button-leave"}}
 <button
-    hx-put="/story_task/{{.ID}}" hx-target="#template-controls-{{.ID}}" hx-vals='{"action": "leave"}' hx-swap="outerHTML"
+    hx-put="/task/{{.ID}}" hx-vals='{"action": "leave"}' hx-target="#task-element-{{ .ID }}" hx-swap="outerHTML"
     class="text-sm uppercase items-center p-1 text-white bg-blue-700 hover:bg-blue-800 4focus:ring-4 focus:ring-blue-300 focus:outline-none inline-flex items-center"
 >
     Leave

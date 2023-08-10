@@ -29,19 +29,117 @@ type StoryDetail struct {
     Tasks []Task
 }
 
+type Task struct {
+    IsUserLoggedIn bool
+    IsStoryOwner bool
+    HasJoined bool
+    ID int64
+    Name string
+    Description string
+    SlotsTotal int64
+    SlotsAssigned int64
+    AssignmentList []Assignments
+}
+
+type Assignments struct {
+    ID int64
+    AssigneeID int64
+    AssigneeName string
+}
+
+func GetTaskAssignments (db *sql.DB, taskID int64, userID int64) ([]Assignments, bool, error) {
+    assignments := []Assignments{}
+    rows, err := db.Query(`
+        SELECT
+            assignment.id,
+            assignment.assignee_id,
+            user.username
+        FROM assignment
+        JOIN user ON assignment.assignee_id = user.id
+        WHERE assignment.task_id = $1
+        `,
+        taskID,
+    )
+    if err != nil {
+        return []Assignments{}, false, err
+    }
+    defer rows.Close()
+
+    hasJoined := false
+    for rows.Next() {
+        var id int64
+        var assigneeID int64
+        var assigneeName string
+
+        err = rows.Scan(&id, &assigneeID, &assigneeName)
+        if err != nil {
+            return []Assignments{}, false, err
+        }
+        hasJoined = hasJoined || assigneeID == userID
+
+        assignments = append(assignments, Assignments {
+            ID: id,
+            AssigneeID: assigneeID,
+            AssigneeName: assigneeName,
+        })
+    }
+
+    return assignments, hasJoined, nil
+}
+
+func GetSingleTask (db *sql.DB, taskID int64, userID int64) (Task, error) {
+    row := db.QueryRow(`
+        SELECT
+            task.id,
+            task.name,
+            task.description,
+            task.slots,
+            story.creator_id
+        FROM task
+        JOIN story ON task.story_id = story.id
+        WHERE task.id = $1
+        `,
+        taskID,
+    )
+
+    var id int64
+    var name string
+    var storyOwnerID int64
+    var description string
+    var slots int64
+    err := row.Scan(&id, &name, &description, &slots, &storyOwnerID)
+    if err != nil {
+        return Task{}, err
+    }
+    assignments, hasJoined, err := GetTaskAssignments(db, id, userID)
+    if err != nil {
+        return Task{}, err
+    }
+
+    task := Task {
+        ID: id,
+        SlotsTotal: slots,
+        SlotsAssigned: int64(len(assignments)),
+        Description: description,
+        Name: name,
+        HasJoined: hasJoined,
+        AssignmentList: assignments,
+        IsStoryOwner: storyOwnerID == userID,
+    }
+
+    return task, nil
+}
+
 func GetStoryTasks (db *sql.DB, storyID int64, userID int64, isStoryOwner bool, isUserLoggedIn bool) ([]Task, error) {
     tasks := []Task{}
     rows, err := db.Query(`
         SELECT
-            story_task.id,
-            story_task.assignee_id,
-            user.username,
-            story_task.task_id,
-            task.name
-        FROM story_task
-        JOIN task on story_task.task_id = task.id
-        LEFT JOIN user on story_task.assignee_id = user.id
-        WHERE story_task.story_id = $1
+            task.id,
+            task.name,
+            task.description,
+            task.slots
+        FROM task
+        WHERE task.story_id = $1
         `,
         storyID,
     )
@@ -52,36 +150,30 @@ func GetStoryTasks (db *sql.DB, storyID int64, userID int64, isStoryOwner bool, 
 
     for rows.Next() {
         var id int64
-        var assigneeIDOption sql.NullInt64
-        var assigneeNameOption sql.NullString
-        var taskID int64
-        var taskName string
+        var name string
+        var description string
+        var slots int64
 
-        err = rows.Scan(&id, &assigneeIDOption, &assigneeNameOption, &taskID, &taskName)
+        err = rows.Scan(&id, &name, &description, &slots)
         if err != nil {
             return []Task{}, err
         }
 
-        var assigneeID int64
-        if assigneeIDOption.Valid {
-            assigneeID = assigneeIDOption.Int64
-        } else {
-            assigneeID = 0
-        }
-        assigneeName := ""
-        if assigneeNameOption.Valid {
-            assigneeName = assigneeNameOption.String
+        assignments, hasJoined, err := GetTaskAssignments(db, id, userID)
+        if err != nil {
+            return []Task{}, err
         }
 
         tasks = append(tasks, Task {
             ID: id,
-            AssigneeID: assigneeID,
-            AssigneeName: assigneeName,
-            TaskID: taskID,
-            Name: taskName,
+            SlotsTotal: slots,
+            SlotsAssigned: int64(len(assignments)),
+            Description: description,
+            Name: name,
             IsStoryOwner: isStoryOwner,
-            HasJoined: assigneeID == userID,
             IsUserLoggedIn: isUserLoggedIn,
+            HasJoined: hasJoined,
+            AssignmentList: assignments,
         })
     }
 
@@ -91,6 +183,9 @@ func GetStoryTasks (db *sql.DB, storyID int64, userID int64, isStoryOwner bool, 
 func StoryDetailHandler (w http.ResponseWriter, r *http.Request) {
     vars := mux.Vars(r)
     storyID, err := strconv.ParseInt(vars["id"], 10, 64)
+    if err != nil {
+        log.Fatal(err)
+    }
     db, err := OpenDB()
     if err != nil {
         log.Fatal(err)
@@ -227,17 +322,6 @@ func StoryListHandler (w http.ResponseWriter, r *http.Request) {
     tmpl.Execute(w, StoryListData{ Stories: stories, IsUserLoggedIn: sessionErr == nil })
 }
 
-type Task struct {
-    IsUserLoggedIn bool
-    IsStoryOwner bool
-    HasJoined bool
-    ID int64
-    TaskID int64
-    Name string
-    AssigneeID int64
-    AssigneeName string
-}
-
 type CreateStoryPageData struct {
     StoryID int64
     Tasks []Task
@@ -255,8 +339,11 @@ func CreateStoryPage (w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    //TODO: reconsider this
-    _, err = db.Exec("DELETE FROM story_task WHERE story_id IN (SELECT story.id FROM story WHERE creator_id = $1 AND status = 0)", userID)
+    _, err = db.Exec("DELETE FROM assignment WHERE task_id IN (SELECT task.id FROM task JOIN story ON story.id = task.story_id AND story.creator_id = $1 AND status = 0)", userID)
+    if err != nil {
+        log.Fatal(err)
+    }
+    _, err = db.Exec("DELETE FROM task WHERE story_id IN (SELECT story.id FROM story WHERE creator_id = $1 AND status = 0)", userID)
     if err != nil {
         log.Fatal(err)
     }
@@ -295,7 +382,12 @@ func AddTaskToStoryHandler (w http.ResponseWriter, r *http.Request) {
     if err != nil {
         log.Fatal(err)
     }
-    taskID := r.PostFormValue("task")
+    name := r.PostFormValue("name")
+    description := r.PostFormValue("description")
+    slots, err := strconv.ParseInt(r.PostFormValue("slots"), 10, 64)
+    if err != nil {
+        log.Fatal(err)
+    }
 
     db, err := OpenDB()
     if err != nil {
@@ -308,7 +400,7 @@ func AddTaskToStoryHandler (w http.ResponseWriter, r *http.Request) {
         log.Fatal(err)
     }
 
-    result, err := db.Exec("INSERT INTO story_task (story_id, task_id) VALUES($1, $2)", storyID, taskID)
+    result, err := db.Exec("INSERT INTO task (story_id, name, description, slots) VALUES($1, $2, $3, $4)", storyID, name, description, slots)
     if err != nil {
         // http.Error(w, http.StatusText(500), 500)
         log.Fatal(err)
@@ -320,32 +412,18 @@ func AddTaskToStoryHandler (w http.ResponseWriter, r *http.Request) {
         log.Fatal(err)
     }
 
-    row := db.QueryRow("SELECT name FROM Task WHERE task.id = $1", taskID)
-    var taskName string
-    err = row.Scan(&taskName)
-    if err != nil {
-        log.Fatal(err)
-    }
-
     tmpl := template.Must(template.ParseFiles("app/templates/task-list-element.html"))
     template.Must(tmpl.New("spinner").ParseFiles("app/templates/spinner.html"))
 
-    err = tmpl.ExecuteTemplate(w, "task-list-element-base", Task{ID: id, Name: taskName, AssigneeID: 0, AssigneeName: "", IsStoryOwner: true, HasJoined: false })
+    err = tmpl.ExecuteTemplate(w, "task-list-element-base", Task{ID: id, Name: name, Description: description, SlotsTotal: slots, SlotsAssigned: 0 })
     if err != nil {
         log.Fatal(err)
     }
-}
-
-type StoryTaskButtonData struct {
-    ID int64
-    AssigneeID int64
-    AssigneeName string
-    HasJoined bool
 }
 
 func ChangeStoryTaskHandler (w http.ResponseWriter, r *http.Request) {
     vars := mux.Vars(r)
-    storyTaskID, err := strconv.ParseInt(vars["id"], 10, 64)
+    taskID, err := strconv.ParseInt(vars["id"], 10, 64)
     if err != nil {
         log.Fatal(err)
     }
@@ -357,34 +435,20 @@ func ChangeStoryTaskHandler (w http.ResponseWriter, r *http.Request) {
         return
     }
     defer db.Close()
-    userID, userName, err := auth.ValidateSession(db, r);
+    userID, _, err := auth.ValidateSession(db, r);
     if err != nil {
         log.Fatal(err)
     }
 
     var result sql.Result
-    var storyTaskData StoryTaskButtonData
     if action == "join" {
-        result, err = db.Exec("UPDATE story_task SET assignee_id = $1 WHERE id = $2 AND assignee_id IS NULL", userID, storyTaskID)
-        storyTaskData = StoryTaskButtonData {
-            ID: storyTaskID,
-            AssigneeID: userID,
-            AssigneeName: userName,
-            HasJoined: true,
-        }
+        result, err = db.Exec("INSERT INTO assignment (task_id, assignee_id) VALUES($1, $2)", taskID, userID)
     } else {
-        result, err = db.Exec("UPDATE story_task SET assignee_id = NULL WHERE id = $1 AND assignee_id = $2", storyTaskID, userID)
-        storyTaskData = StoryTaskButtonData {
-            ID: storyTaskID,
-            AssigneeID: 0,
-            AssigneeName: "",
-            HasJoined: false,
-        }
+        result, err = db.Exec("DELETE FROM assignment WHERE task_id = $1 AND assignee_id = $2", taskID, userID)
     }
     if err != nil {
         log.Fatal(err)
     }
-
     rowsAffected, err := result.RowsAffected()
     if err != nil {
         http.Error(w, http.StatusText(500), 500)
@@ -394,9 +458,11 @@ func ChangeStoryTaskHandler (w http.ResponseWriter, r *http.Request) {
         log.Fatal(fmt.Errorf("Error action: %s task, rows affected: %d", action, rowsAffected))
     }
 
-    tmpl := template.Must(template.ParseFiles("app/templates/task-list-element.html", "app/templates/task-list-element-view.html"))
+    task, err := GetSingleTask(db, taskID, userID)
+    task.IsUserLoggedIn = true
 
-    err = tmpl.ExecuteTemplate(w, "template-controls", storyTaskData)
+    tmpl := template.Must(template.ParseFiles("app/templates/task-list-element-view.html", "app/templates/task-list-element.html", "app/templates/spinner.html"))
+    err = tmpl.ExecuteTemplate(w, "task-list-element-view.html", task)
     if err != nil {
         log.Fatal(err)
     }
@@ -415,7 +481,7 @@ func DeleteStoryTaskHandler (w http.ResponseWriter, r *http.Request) {
         log.Fatal(err)
     }
 
-    result, err := db.Exec("DELETE FROM story_task WHERE id = $1", id)
+    result, err := db.Exec("DELETE FROM task WHERE id = $1", id)
     if err != nil {
         log.Fatal(err)
     }
@@ -463,7 +529,7 @@ func FinalizeCreateStoryHandler (w http.ResponseWriter, r *http.Request) {
         log.Fatal(errors.New("Error updating entry"))
     }
 
-    w.Header().Add("HX-Trigger-After-Settle", "reload-stories")
+    w.Header().Add("HX-Trigger", "reload-stories")
 }
 
 func DeleteStoryHandler(w http.ResponseWriter, r *http.Request) {

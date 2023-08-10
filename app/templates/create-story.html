@@ -1,91 +1,113 @@
-<div class="p-2">
-    <h1 class="mb-2 text-lg font-semibold text-gray-900">Add Story</h1>
-    <form id="create-story-form" hx-put="/story/{{ .StoryID }}/finalize" hx-target="#content" hx-indicator="#create-story-spinner">
-        <div class="mb-2">
-            <label for="story-title">Title</label>
-            <input
-                required
-                type="text"
-                placeholder="Title"
-                name="title"
-                id="story-title"
-                class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
-            />
-        </div>
-        <div class="mb-2">
-            <label for="story-time">Start date</label>
-            <input
-                required
-                id="story-time"
-                type="datetime-local"
-                name="time"
-                class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
-            />
-        </div>
-
-        <div class="mb-2">
-            <label for="story-description">Description</label>
-            <textarea
-                id="story-description"
-                name="description"
-                rows="6"
-                class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Description..."
-            ></textarea>
-        </div>
-
-        <script>
-            htmx.on('#create-story-form', 'htmx:configRequest', function(evt) {
-                evt.detail.parameters.time = new Date(evt.detail.parameters.time).getTime() / 1000;
-            });
-        </script>
-    </form>
-    <div class="mb-2">
-        <form  hx-post="/story/{{ .StoryID }}/task" hx-target="#added-tasks" hx-swap="beforeend">
-            <label for="task-adder">Tasks</label>
-            <div class="flex">
-                <select
-                    id="task-adder"
-                    name="task"
-                    class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 grow"
-                >
-                    <option value="" selected>Add a task</option>
-                    {{ range .Tasks }}
-                        <option value="{{ .ID }}">{{ .Name }}</option>
-                    {{ end }}
-                </select>
-                <button
-                    disabled
-                    id="add-task-button"
-                    type="submit"
-                    class="rounded-lg text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 justify-center focus:ring-blue-300 px-2.5 py-2 ml-2 focus:outline-none inline-flex items-center grow-0 disabled:opacity-50"
-                >
-                    Add
-                    <span id="spinner" class="htmx-indicator">
-                        {{template "spinner-submit" "spinner"}}
-                    </span>
-                </button>
+<div class="grid grid-cols-1 gap-y-2 divide-y divide-slate-400">
+    <div class="px-2">
+        <h1 class="mb-2 text-lg font-semibold text-gray-900">Add Story</h1>
+        <form id="create-story-form" hx-put="/story/{{ .StoryID }}/finalize" hx-target="#content" hx-indicator="#create-story-spinner">
+            <div class="mb-2">
+                <label for="story-title">Title</label>
+                <input
+                    required
+                    type="text"
+                    placeholder="Title"
+                    name="title"
+                    id="story-title"
+                    class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
+                />
             </div>
+            <div class="mb-2">
+                <label for="story-time">Start date</label>
+                <input
+                    required
+                    id="story-time"
+                    type="datetime-local"
+                    name="time"
+                    class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
+                />
+            </div>
+
+            <div class="mb-2">
+                <label for="story-description">Description</label>
+                <textarea
+                    id="story-description"
+                    name="description"
+                    rows="6"
+                    class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Description..."
+                ></textarea>
+            </div>
+
+            <script>
+                htmx.on('#create-story-form', 'htmx:configRequest', function(evt) {
+                    evt.detail.parameters.time = new Date(evt.detail.parameters.time).getTime() / 1000;
+                });
+            </script>
+        </form>
+    </div>
+    <div class="px-2">
+        <h1 class="mb-2 text-lg font-semibold text-gray-900">Add Task to Story</h1>
+        <form  hx-post="/story/{{ .StoryID }}/task" hx-target="#added-tasks" hx-swap="beforeend" hx-indicator="#create-task-spinner">
+            <div class="mb-2">
+                <label for="task-title">Title</label>
+                <input
+                    required
+                    type="text"
+                    placeholder="Name"
+                    name="name"
+                    id="task-title"
+                    class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
+                />
+            </div>
+            <div class="mb-2">
+                <label for="task-description">Description</label>
+                <textarea
+                    id="task-description"
+                    name="description"
+                    rows="3"
+                    class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Description..."
+                ></textarea>
+            </div>
+            <div class="mb-2">
+                <label for="tasks-slots" class="block font-medium text-gray-900">Slots <span id="slot-amount">1</span></label>
+                <input
+                    id="tasks-slots"
+                    name="slots"
+                    type="range"
+                    min="1"
+                    max="10"
+                    step="1"
+                    value="1"
+                    class="w-full h-2 mb-6 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                >
+            </div>
+            <button
+                type="submit"
+                class="rounded-lg text-white bg-blue-700 hover:bg-blue-800 4focus:ring-4 focus:ring-blue-300 px-2.5 py-2 mr-2 mb-2 focus:outline-none inline-flex items-center"
+            >
+                Add
+                {{template "spinner-submit" "create-task-spinner"}}
+            </button>
             <div id="added-tasks" class="flex flex-wrap"></div>
         </form>
         <script>
-            htmx.on('#task-adder', 'change', function(evt) {
-                htmx.find("#add-task-button").disabled = evt.target.value === "";
+            htmx.on('#tasks-slots', 'input', function(evt) {
+                htmx.find("#slot-amount").textContent = evt.target.value;
             });
         </script>
     </div>
-    <button
-        type="submit"
-        form="create-story-form"
-        class="rounded-lg text-white bg-blue-700 hover:bg-blue-800 4focus:ring-4 focus:ring-blue-300 px-2.5 py-2 mr-2 mb-2 focus:outline-none inline-flex items-center"
-    >
-        Submit
-        {{template "spinner-submit" "create-story-spinner"}}
-    </button>
-    <button
-        hx-get="/view/story" hx-target="#content"
-        class="rounded-lg text-white bg-blue-700 hover:bg-blue-800 4focus:ring-4 focus:ring-blue-300 px-2.5 py-2 mr-2 mb-2 focus:outline-none inline-flex items-center"
-    >
-        Cancel
-    </button>
+    <div class="px-2 pt-2">
+        <button
+            type="submit"
+            form="create-story-form"
+            class="rounded-lg text-white bg-blue-700 hover:bg-blue-800 4focus:ring-4 focus:ring-blue-300 px-2.5 py-2 mr-2 mb-2 focus:outline-none inline-flex items-center"
+        >
+            Submit
+            {{template "spinner-submit" "create-story-spinner"}}
+        </button>
+        <button
+            hx-get="/view/story" hx-target="#content"
+            class="rounded-lg text-white bg-blue-700 hover:bg-blue-800 4focus:ring-4 focus:ring-blue-300 px-2.5 py-2 mr-2 mb-2 focus:outline-none inline-flex items-center"
+        >
+            Cancel
+        </button>
+    </div>
 </div>

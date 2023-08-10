@@ -32,19 +32,21 @@ CREATE TABLE IF NOT EXISTS story (
 DROP TABLE IF EXISTS task;
 CREATE TABLE IF NOT EXISTS task (
     id INTEGER NOT NULL,
+    story_id INTEGER NOT NULL,
     name TEXT NOT NULL,
-    PRIMARY KEY (id)
+    description TEXT,
+    slots INTEGER DEFAULT 1,
+    PRIMARY KEY (id),
+    FOREIGN KEY (story_id)
+      REFERENCES story (id)
 );
 
-DROP TABLE IF EXISTS story_task;
-CREATE TABLE IF NOT EXISTS story_task (
+DROP TABLE IF EXISTS assignment;
+CREATE TABLE IF NOT EXISTS assignment (
     id INTEGER NOT NULL,
-    story_id INTEGER NOT NULL,
     task_id INTEGER NOT NULL,
     assignee_id INTEGER,
     PRIMARY KEY (id)
-    FOREIGN KEY (story_id)
-      REFERENCES story (id),
     FOREIGN KEY (task_id)
       REFERENCES task (id),
     FOREIGN KEY (assignee_id)

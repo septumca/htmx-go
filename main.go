@@ -28,8 +28,8 @@ func main() {
     r.HandleFunc("/logout", server.DoLogoutHandler).Methods("POST")
 
     r.HandleFunc("/story/{id}/task", server.AddTaskToStoryHandler).Methods("POST")
-    r.HandleFunc("/story_task/{id}", server.DeleteStoryTaskHandler).Methods("DELETE")
-    r.HandleFunc("/story_task/{id}", server.ChangeStoryTaskHandler).Methods("PUT")
+    r.HandleFunc("/task/{id}", server.DeleteStoryTaskHandler).Methods("DELETE")
+    r.HandleFunc("/task/{id}", server.ChangeStoryTaskHandler).Methods("PUT")
     r.HandleFunc("/story/{id}/finalize", server.FinalizeCreateStoryHandler).Methods("PUT")
     r.HandleFunc("/story/{id}", server.DeleteStoryHandler).Methods("DELETE")
     r.HandleFunc("/story/{id}", server.StoryDetailHandler).Methods("GET")

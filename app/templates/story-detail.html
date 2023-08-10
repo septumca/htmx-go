@@ -6,7 +6,6 @@
         </div>
         <div>{{ .Story.Creator }}</div>
     </div>
-    <p class="mb-3 font-normal text-gray-700">{{ .Story.Description }}</p>
     {{ if .Story.IsStoryOwner }}
         <button
             hx-delete="/story/{{ .Story.ID }}"
@@ -15,7 +14,8 @@
             {{template "spinner-delete"}}
         </button>
     {{end}}
-    <div class="flex flex-wrap mb-3">
+    <p class="mb-3 font-normal text-gray-700">{{ .Story.Description }}</p>
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 mb-3 gap-1">
         {{ range .Tasks }}
             {{template "task-list-element-view.html" .}}
         {{ end }}
