@@ -24,11 +24,11 @@ func GetSessionID(cookieHeader string) (string, error) {
 func GetSessionUser(db *sql.DB, sessionID string) (int64, string, error) {
     row := db.QueryRow(`
         SELECT
-            access_token.user,
+            access_token.user_id,
             user.username,
             access_token.valid_to
         FROM access_token
-        JOIN user ON user.id = access_token.user
+        JOIN user ON user.id = access_token.user_id
         WHERE access_token.token = $1`,
         sessionID,
     )
@@ -78,8 +78,8 @@ func SavePasswordForUser(db *sql.DB, username string, password string) (int64, e
 func GenerateSessionID(db *sql.DB, userID int64) (string, error) {
     const TokenValidSeconds = 28800;
     sessionID := uuid.New().String()
-    _, err := db.Exec("DELETE FROM access_token WHERE user = $1", userID)
-    result, err := db.Exec("INSERT INTO access_token (user, token, valid_to) VALUES($1, $2, $3)", userID, sessionID, time.Now().Unix() + TokenValidSeconds)
+    _, err := db.Exec("DELETE FROM access_token WHERE user_id = $1", userID)
+    result, err := db.Exec("INSERT INTO access_token (user_id, token, valid_to) VALUES($1, $2, $3)", userID, sessionID, time.Now().Unix() + TokenValidSeconds)
     if err != nil {
         // http.Error(w, http.StatusText(500), 500)
         return "", err
@@ -119,7 +119,7 @@ func Logout(db *sql.DB, r *http.Request) error {
     if err != nil {
         return err;
     }
-    result, err := db.Exec("DELETE FROM access_token WHERE user = $1", userID)
+    result, err := db.Exec("DELETE FROM access_token WHERE user_id = $1", userID)
     if err != nil {
         return err
     }

@@ -21,15 +21,11 @@
         }
     </style>
 </head>
-<body class="p-2">
-    <div class="grid gap-4 grid-cols-6">
-        <div hx-get="/header" hx-trigger="load" id="header" class="col-span-6"></div>
-        {{if .IsUserLoggedIn }}
-        <div class="col-span-6">
-            {{template "create-story"}}
-        </div>
-        {{end}}
-        <div hx-get="/story" hx-trigger="load" class="col-span-6"></div>
+<body>
+    <div>
+        <div hx-get="/view/header" id="header" class="p-2" hx-trigger="load"></div>
+        <div id="content"></div>
+        <div hx-get="/view/story" hx-target="#content" hx-trigger="load, reload-stories from:body"></div>
     </div>
 </body>
 </html>

@@ -1,7 +1,19 @@
-<h1 class="mb-2 text-lg font-semibold text-gray-900 dark:text-white">Story List</h1>
-
-<ul class="space-y-1 text-gray-500 list-none list-inside dark:text-gray-400" id="story-list">
+<div class="flex px-2">
+    <h1 class="grow mb-2 py-2 text-lg font-semibold text-gray-900">Stories</h1>
+    {{if .IsUserLoggedIn }}
+    <button
+        hx-get="/view/create_story" hx-target="#content"
+        class="rounded-lg text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 justify-center focus:ring-blue-300 px-2.5 py-2 mb-2 focus:outline-none inline-flex items-center"
+    >
+        New
+        <span id="spinner" class="htmx-indicator">
+            {{template "spinner-submit" "spinner"}}
+        </span>
+    </button>
+    {{end}}
+</div>
+<div class="space-y-1 text-gray-500" id="story-list">
     {{ range .Stories }}
         {{template "story-list-element" .}}
     {{ end }}
-</ul>
+</div>

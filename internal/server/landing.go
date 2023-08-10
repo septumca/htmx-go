@@ -93,39 +93,12 @@ type LandingPageData struct {
 }
 
 func LandingPage (w http.ResponseWriter, r *http.Request) {
-    db, err := OpenDB()
-    if err != nil {
-        log.Fatal(err)
-    }
-    defer db.Close()
-
-    // rows, err := db.Query("SELECT user.id, user.username FROM user")
-    // if err != nil {
-    //     log.Fatal(err)
-    // }
-    // defer rows.Close()
-
-    // users := []User{}
-    // for rows.Next() {
-    //     var id int64
-    //     var username string
-
-    //     err = rows.Scan(&id, &username)
-    //     if err != nil {
-    //         log.Fatal(err)
-    //     }
-
-    //     users = append(users, User { ID: id, Username: username })
-    // }
-    _, _, err = auth.ValidateSession(db, r);
-    IsUserLoggedIn := err == nil
-
     tmpl := template.Must(template.ParseFiles(
         "app/templates/index.html",
         "app/templates/create-story.html",
         "app/templates/spinner.html",
     ))
-    err = tmpl.Execute(w, LandingPageData{ IsUserLoggedIn: IsUserLoggedIn })
+    err := tmpl.Execute(w, nil)
     if err != nil {
         log.Fatal(err)
     }

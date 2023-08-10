@@ -1,0 +1,13 @@
+{{template "task-list-element-base" .}}
+{{define "template-controls"}}
+    <div id="template-controls-{{.ID}}">
+    {{ if not .AssigneeID }}
+        {{template "button-join" .}}
+    {{ else }}
+        <span class="font-semibold text-gray-900">{{.AssigneeName}}</span>
+        {{ if .HasJoined }}
+            {{template "button-leave" .}}
+        {{ end }}
+    {{ end }}
+    </div>
+{{end}}

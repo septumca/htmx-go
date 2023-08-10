@@ -1,0 +1,29 @@
+<div class="fade-out fade-in p-4 bg-gray-50">
+    <div class="flex">
+        <div class="grow">
+            <time>{{ .Story.StartTime }}</time>
+            <h1 class="mb-2 text-lg font-semibold text-gray-900">{{ .Story.Title }}</h1>
+        </div>
+        <div>{{ .Story.Creator }}</div>
+    </div>
+    <p class="mb-3 font-normal text-gray-700">{{ .Story.Description }}</p>
+    {{ if .Story.IsStoryOwner }}
+        <button
+            hx-delete="/story/{{ .Story.ID }}"
+            class="rounded-lg text-white bg-red-700 hover:bg-red-800 focus:ring-4 focus:ring-red-300 px-2.5 py-2 mr-2 mb-2 focus:outline-none inline-flex items-center">
+            Delete
+            {{template "spinner-delete"}}
+        </button>
+    {{end}}
+    <div class="flex flex-wrap mb-3">
+        {{ range .Tasks }}
+            {{template "task-list-element-view.html" .}}
+        {{ end }}
+    </div>
+    <button
+        hx-get="/view/story" hx-target="#content"
+        class="rounded-lg text-white bg-blue-700 hover:bg-blue-800 4focus:ring-4 focus:ring-blue-300 px-2.5 py-2 mr-2 mb-2 focus:outline-none inline-flex items-center"
+    >
+        Back
+    </button>
+</div>
