@@ -3,24 +3,36 @@
     id="task-element-{{ .ID }}"
     class="fade-out fade-in my-1 p-2.5 w-full bg-white border border-gray-200 rounded-lg shadow"
 >
-    <div class="flex">
-        <span class="font-semibold text-gray-900 grow">
-            {{ .Name }}&nbsp;
-            {{ .SlotsAssigned }}/{{ .SlotsTotal }}
-        </span>
-        {{ if .IsStoryOwner }}
-            <button
-                hx-delete="/task/{{ .ID }}"
-                hx-target="#task-element-{{ .ID }}"
-                hx-swap="outerHTML swap:0.5s"
-                class="text-white bg-red-700 hover:bg-red-800 focus:ring-4 focus:ring-red-300 px-1 focus:outline-none inline-flex items-center"
-            >
-                Delete
-                {{template "spinner-delete"}}
-            </button>
+    <div id="task-data-{{ .ID }}">
+        {{block "task-detail-view" .}}
+        <div class="flex">
+            <span class="font-semibold text-gray-900 grow">
+                {{ .Name }}&nbsp;
+                {{ .SlotsAssigned }}/{{ .SlotsTotal }}
+            </span>
+            {{ if .IsStoryOwner }}
+                <button
+                    hx-get="/view/task/{{ .ID }}/edit"
+                    hx-target="#task-data-{{ .ID }}"
+                    class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 px-1 focus:outline-none inline-flex items-center"
+                >
+                    Edit
+                    {{template "spinner-delete"}}
+                </button>
+                <button
+                    hx-delete="/task/{{ .ID }}"
+                    hx-target="#task-element-{{ .ID }}"
+                    hx-swap="outerHTML swap:0.5s"
+                    class="text-white bg-red-700 hover:bg-red-800 focus:ring-4 focus:ring-red-300 px-1 focus:outline-none inline-flex items-center"
+                >
+                    Delete
+                    {{template "spinner-delete"}}
+                </button>
+            {{end}}
+        </div>
+        <div>{{ .Description }}</div>
         {{end}}
     </div>
-    <div>{{ .Description }}</div>
     {{ if .IsStoryOwner }}
         {{ range .AssignmentList }}
             <div>{{ .AssigneeName }}</div>
@@ -32,9 +44,68 @@
 </div>
 {{end}}
 
+{{define "task-detail-edit"}}
+<form  hx-put="/task/{{ .ID }}" hx-target="#task-element-{{ .ID }}" hx-indicator="#create-task-spinner">
+    <div class="mb-2">
+        <label for="task-title">Title</label>
+        <input
+            required
+            type="text"
+            placeholder="Name"
+            value="{{ .Name }}"
+            name="name"
+            id="task-title"
+            class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
+        />
+    </div>
+    <div class="mb-2">
+        <label for="task-description">Description</label>
+        <textarea
+            id="task-description"
+            name="description"
+            rows="3"
+            class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+            placeholder="Description..."
+        >{{ .Description }}</textarea>
+    </div>
+    <div class="mb-2">
+        <label for="tasks-slots" class="block font-medium text-gray-900">Slots <span id="slot-amount">{{ .SlotsTotal }}</span></label>
+        <input
+            id="tasks-slots"
+            name="slots"
+            type="range"
+            min="1"
+            max="10"
+            step="1"
+            value="{{ .SlotsTotal }}"
+            class="w-full h-2 mb-6 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+        >
+    </div>
+    <button
+        type="submit"
+        class="rounded-lg text-white bg-blue-700 hover:bg-blue-800 4focus:ring-4 focus:ring-blue-300 px-2.5 py-2 mr-2 mb-2 focus:outline-none inline-flex items-center"
+    >
+        Confirm
+        {{template "spinner-submit" "create-task-spinner"}}
+    </button>
+    <button
+        hx-get="/task/{{ .ID }}"
+        hx-target="#task-data-{{ .ID }}"
+        class="rounded-lg text-white bg-blue-700 hover:bg-blue-800 4focus:ring-4 focus:ring-blue-300 px-2.5 py-2 mr-2 mb-2 focus:outline-none inline-flex items-center"
+    >
+        Cancel
+    </button>
+    <script>
+        htmx.on('#tasks-slots', 'input', function(evt) {
+            htmx.find("#slot-amount").textContent = evt.target.value;
+        });
+    </script>
+</form>
+{{end}}
+
 {{define "button-join"}}
 <button
-    hx-put="/task/{{.ID}}" hx-vals='{"action": "join"}' hx-target="#task-element-{{ .ID }}" hx-swap="outerHTML"
+    hx-put="/task/{{.ID}}/assignment" hx-vals='{"action": "join"}' hx-target="#task-element-{{ .ID }}" hx-swap="outerHTML"
     class="text-sm uppercase items-center p-1 text-white bg-blue-700 hover:bg-blue-800 4focus:ring-4 focus:ring-blue-300 focus:outline-none inline-flex items-center"
 >
     Join
@@ -43,7 +114,7 @@
 
 {{define "button-leave"}}
 <button
-    hx-put="/task/{{.ID}}" hx-vals='{"action": "leave"}' hx-target="#task-element-{{ .ID }}" hx-swap="outerHTML"
+    hx-put="/task/{{.ID}}/assignment" hx-vals='{"action": "leave"}' hx-target="#task-element-{{ .ID }}" hx-swap="outerHTML"
     class="text-sm uppercase items-center p-1 text-white bg-blue-700 hover:bg-blue-800 4focus:ring-4 focus:ring-blue-300 focus:outline-none inline-flex items-center"
 >
     Leave

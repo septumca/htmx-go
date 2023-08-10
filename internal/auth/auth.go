@@ -12,10 +12,10 @@ import (
 )
 
 func GetSessionID(cookieHeader string) (string, error) {
-    for _, c := range strings.Split(cookieHeader, ",") {
+    for _, c := range strings.Split(cookieHeader, ";") {
         cookieVals := strings.Split(c, ":")
-        if cookieVals[0] == "session-id" {
-            return cookieVals[1], nil
+        if strings.TrimSpace(cookieVals[0]) == "session-id" {
+            return strings.TrimSpace(cookieVals[1]), nil
         }
     }
     return "", errors.New("Cannot find session-id token")

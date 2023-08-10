@@ -536,7 +536,7 @@ func AddTaskToStoryHandler (w http.ResponseWriter, r *http.Request) {
     }
 }
 
-func ChangeStoryTaskHandler (w http.ResponseWriter, r *http.Request) {
+func ChangeStoryTaskAssignmentHandler (w http.ResponseWriter, r *http.Request) {
     vars := mux.Vars(r)
     taskID, err := strconv.ParseInt(vars["id"], 10, 64)
     if err != nil {
@@ -575,6 +575,148 @@ func ChangeStoryTaskHandler (w http.ResponseWriter, r *http.Request) {
 
     task, err := GetSingleTask(db, taskID, userID)
     task.IsUserLoggedIn = true
+
+    tmpl := template.Must(template.ParseFiles("app/templates/task-list-element-view.html", "app/templates/task-list-element.html", "app/templates/spinner.html"))
+    err = tmpl.ExecuteTemplate(w, "task-list-element-view.html", task)
+    if err != nil {
+        log.Fatal(err)
+    }
+}
+
+func ChangeStoryTaskViewHandler (w http.ResponseWriter, r *http.Request) {
+    vars := mux.Vars(r)
+    taskID, err := strconv.ParseInt(vars["id"], 10, 64)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    db, err := OpenDB()
+    if err != nil {
+        http.Error(w, http.StatusText(500), 500)
+        return
+    }
+    defer db.Close()
+    userID, _, err := auth.ValidateSession(db, r);
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    task, err := GetSingleTask(db, taskID, userID)
+    if err != nil {
+        log.Fatal(err)
+    }
+    task.IsUserLoggedIn = true
+
+    tmpl := template.Must(template.ParseFiles("app/templates/task-list-element.html", "app/templates/spinner.html"))
+    err = tmpl.ExecuteTemplate(w, "task-detail-edit", task)
+    if err != nil {
+        log.Fatal(err)
+    }
+}
+
+func TaskDetailHandler (w http.ResponseWriter, r *http.Request) {
+    vars := mux.Vars(r)
+    taskID, err := strconv.ParseInt(vars["id"], 10, 64)
+    if err != nil {
+        log.Fatal(err)
+    }
+    db, err := OpenDB()
+    if err != nil {
+        http.Error(w, http.StatusText(500), 500)
+        return
+    }
+    defer db.Close()
+
+    userID, _, sessionErr := auth.ValidateSession(db, r);
+    task, err := GetSingleTask(db, taskID, userID)
+    if err != nil {
+        log.Fatal(err)
+    }
+    task.IsUserLoggedIn = sessionErr != nil
+
+    tmpl := template.Must(template.ParseFiles("app/templates/task-list-element.html", "app/templates/spinner.html"))
+    err = tmpl.ExecuteTemplate(w, "task-detail-view", task)
+    if err != nil {
+        log.Fatal(err)
+    }
+}
+
+func ChangeTaskHandler (w http.ResponseWriter, r *http.Request) {
+    vars := mux.Vars(r)
+    taskID, err := strconv.ParseInt(vars["id"], 10, 64)
+    if err != nil {
+        log.Fatal(err)
+    }
+    db, err := OpenDB()
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer db.Close()
+
+    name := r.PostFormValue("name")
+    description := r.PostFormValue("description")
+    slotsTotal, err := strconv.ParseInt(r.PostFormValue("slots"), 10, 64)
+    if err != nil {
+        log.Fatal(err)
+    }
+    userID, _, sessionErr := auth.ValidateSession(db, r);
+    if sessionErr != nil {
+        log.Fatal(err)
+    }
+
+    result, err := db.Exec(
+        "UPDATE task SET name = $1, description = $2, slots = $3 WHERE id = $4",
+        name, description, slotsTotal, taskID,
+    )
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    rowsAffected, err := result.RowsAffected()
+    if err != nil {
+        log.Fatal(err)
+    }
+    if rowsAffected != 1 {
+        log.Fatal(errors.New("Error updating task"))
+    }
+
+    task, err := GetSingleTask(db, taskID, userID)
+    task.IsUserLoggedIn = true
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    slotsToDelete := task.SlotsAssigned - task.SlotsTotal
+    if slotsToDelete > 0 {
+        result, err := db.Exec(`
+            DELETE FROM assignment
+            WHERE task_id = $1
+            AND id NOT IN
+                (SELECT id FROM assignment WHERE task_id = $1 ORDER BY id ASC LIMIT $2)
+            `,
+            taskID,
+            slotsToDelete,
+        )
+        if err != nil {
+            log.Fatal(err)
+        }
+
+        rowsAffected, err := result.RowsAffected()
+        if err != nil {
+            log.Fatal(err)
+        }
+        if rowsAffected != slotsToDelete {
+            log.Fatal(fmt.Errorf("Error deleting assignments due to the slots change in task: deleted %d instead of %d", rowsAffected, slotsToDelete))
+        }
+
+        assignments, hasJoined, err := GetTaskAssignments(db, taskID, userID)
+        if err != nil {
+            log.Fatal(err)
+        }
+        task.HasJoined = hasJoined
+        task.AssignmentList = assignments
+        task.SlotsAssigned = int64(len(assignments))
+    }
 
     tmpl := template.Must(template.ParseFiles("app/templates/task-list-element-view.html", "app/templates/task-list-element.html", "app/templates/spinner.html"))
     err = tmpl.ExecuteTemplate(w, "task-list-element-view.html", task)
