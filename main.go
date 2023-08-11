@@ -32,6 +32,7 @@ func main() {
     r.HandleFunc("/register", server.DoRegisterHandler).Methods("POST")
     r.HandleFunc("/logout", server.DoLogoutHandler).Methods("POST")
 
+    r.HandleFunc("/story/{id}/finalize/task", server.AddTaskToStoryFinalizeHandler).Methods("POST")
     r.HandleFunc("/story/{id}/task", server.AddTaskToStoryHandler).Methods("POST")
     r.HandleFunc("/task/{id}", server.DeleteStoryTaskHandler).Methods("DELETE")
     r.HandleFunc("/task/{id}", server.TaskDetailHandler).Methods("GET")

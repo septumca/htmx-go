@@ -26,7 +26,7 @@
         <p class="mb-3 font-normal text-gray-700">{{ .Story.Description }}</p>
         {{end}}
     </div>
-    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 mb-3 gap-1">
+    <div id="story-tasks" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 mb-3 gap-1">
         {{ range .Tasks }}
             {{template "task-list-element-view.html" .}}
         {{ end }}
@@ -40,42 +40,28 @@
 </div>
 
 {{define "story-detail-edit"}}
-    <form id="edit-story-form" hx-put="/story/{{ .ID }}" hx-target="#story-data" hx-indicator="#create-story-spinner">
-        <div class="mb-2">
-            <label for="story-title">Title</label>
-            <input
-                required
-                type="text"
-                placeholder="Title"
-                name="title"
-                id="story-title"
-                value="{{.Title}}"
-                class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
-            />
-        </div>
-        <div class="mb-2">
-            <label for="story-time">Start date</label>
-            <input
-                required
-                id="story-time"
-                type="datetime-local"
-                value="{{.StartTime}}"
-                name="time"
-                class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
-            />
-        </div>
-
-        <div class="mb-2">
-            <label for="story-description">Description</label>
-            <textarea
-                id="story-description"
-                name="description"
-                rows="6"
-                class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Description..."
-            >{{.Description}}</textarea>
-        </div>
-
+    <div class="grid grid-cols-1 gap-y-2 divide-y divide-slate-400">
+        <form id="edit-story-form" hx-put="/story/{{ .ID }}" hx-target="#story-data" hx-indicator="#create-story-spinner">
+            {{template "story-form-inputs" .}}
+            <script>
+                htmx.on('#edit-story-form', 'htmx:configRequest', function(evt) {
+                    evt.detail.parameters.time = new Date(evt.detail.parameters.time).getTime() / 1000;
+                });
+            </script>
+        </form>
+    </div>
+    <div>
+        <h1 class="mb-2 text-lg font-semibold text-gray-900">Add Task to Story</h1>
+        <form hx-post="/story/{{ .ID }}/task" hx-target="#story-tasks" hx-swap="beforeend" hx-indicator="#create-task-spinner">
+            {{template "task-form-inputs" .}}
+        </form>
+        <script>
+            htmx.on('#tasks-slots', 'input', function(evt) {
+                htmx.find("#slot-amount").textContent = evt.target.value;
+            });
+        </script>
+    </div>
+    <div>
         <button
             type="submit"
             hx-target="#story-data"
@@ -91,11 +77,5 @@
         >
             Cancel
         </button>
-
-        <script>
-            htmx.on('#edit-story-form', 'htmx:configRequest', function(evt) {
-                evt.detail.parameters.time = new Date(evt.detail.parameters.time).getTime() / 1000;
-            });
-        </script>
-    </form>
+    </div>
 {{end}}

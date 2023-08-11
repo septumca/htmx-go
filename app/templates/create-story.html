@@ -2,6 +2,7 @@
     <div class="px-2">
         <h1 class="mb-2 text-lg font-semibold text-gray-900">Add Story</h1>
         <form id="create-story-form" hx-put="/story/{{ .StoryID }}/finalize" hx-target="#content" hx-indicator="#create-story-spinner">
+            {{block "story-form-inputs" .}}
             <div class="mb-2">
                 <label for="story-title">Title</label>
                 <input
@@ -9,6 +10,7 @@
                     type="text"
                     placeholder="Title"
                     name="title"
+                    value="{{.Title}}"
                     id="story-title"
                     class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
                 />
@@ -19,11 +21,11 @@
                     required
                     id="story-time"
                     type="datetime-local"
+                    value="{{.StartTime}}"
                     name="time"
                     class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
                 />
             </div>
-
             <div class="mb-2">
                 <label for="story-description">Description</label>
                 <textarea
@@ -32,19 +34,20 @@
                     rows="6"
                     class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500"
                     placeholder="Description..."
-                ></textarea>
+                >{{.Description}}</textarea>
             </div>
-
             <script>
                 htmx.on('#create-story-form', 'htmx:configRequest', function(evt) {
                     evt.detail.parameters.time = new Date(evt.detail.parameters.time).getTime() / 1000;
                 });
             </script>
         </form>
+        {{end}}
     </div>
     <div class="px-2">
         <h1 class="mb-2 text-lg font-semibold text-gray-900">Add Task to Story</h1>
-        <form  hx-post="/story/{{ .StoryID }}/task" hx-target="#added-tasks" hx-swap="beforeend" hx-indicator="#create-task-spinner">
+        <form hx-post="/story/{{ .StoryID }}/finalize/task" hx-target="#added-tasks" hx-swap="beforeend" hx-indicator="#create-task-spinner">
+            {{block "task-form-inputs" .}}
             <div class="mb-2">
                 <label for="task-title">Title</label>
                 <input
@@ -86,6 +89,7 @@
                 Add
                 {{template "spinner-submit" "create-task-spinner"}}
             </button>
+            {{end}}
             <div id="added-tasks" class="flex flex-wrap"></div>
         </form>
         <script>

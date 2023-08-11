@@ -45,7 +45,7 @@
 {{end}}
 
 {{define "task-detail-edit"}}
-<form  hx-put="/task/{{ .ID }}" hx-target="#task-element-{{ .ID }}" hx-indicator="#create-task-spinner">
+<form  hx-put="/task/{{ .ID }}" hx-target="#task-element-{{ .ID }}" hx-swap="outerHTML" hx-indicator="#create-task-spinner">
     <div class="mb-2">
         <label for="task-title">Title</label>
         <input

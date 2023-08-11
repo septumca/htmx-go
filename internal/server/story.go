@@ -2,7 +2,6 @@ package server
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -281,63 +280,13 @@ func StoryEditPageHandler (w http.ResponseWriter, r *http.Request) {
     }
     startTimeString := time.Unix(startTime, 0).Format("2006-01-02T15:04")
 
-    tmpl := template.Must(template.ParseFiles("app/templates/story-detail.html", "app/templates/spinner.html"))
+    tmpl := template.Must(template.ParseFiles("app/templates/story-detail.html", "app/templates/create-story.html", "app/templates/spinner.html"))
     err = tmpl.ExecuteTemplate(w, "story-detail-edit", StoryEditPageData {
         ID: id,
         Title: title,
         Description: description,
         StartTime: startTimeString,
     })
-    if err != nil {
-        http.Error(w, fmt.Sprintf("Error building template: %s", err), 500)
-    }
-}
-
-type StoryViewPageData struct {
-    Story Story
-}
-
-func ChangeStoryHandler (w http.ResponseWriter, r *http.Request) {
-    vars := mux.Vars(r)
-    storyID, err := strconv.ParseInt(vars["id"], 10, 64)
-    if err != nil {
-        http.Error(w, fmt.Sprintf("Cannot parse value %s as integer: %s", vars["id"], err), 400)
-        return
-    }
-    db, err := OpenDB()
-    if err != nil {
-        http.Error(w, fmt.Sprintf("Error connecting to database: %s", err), 500)
-        return
-    }
-    defer db.Close()
-    title := r.PostFormValue("title")
-    description := r.PostFormValue("description")
-    startTime, err := strconv.ParseInt(r.PostFormValue("time"), 10, 64)
-    if err != nil {
-        http.Error(w, fmt.Sprintf("Cannot parse value %s as integer: %s", r.PostFormValue("time"), err), 400)
-        return
-    }
-    userID, userName, sessionErr := auth.ValidateSession(db, r)
-    if sessionErr != nil {
-        http.Error(w, "Cannot find valid session", 401)
-        return
-    }
-
-    err = UpdateStory(db, storyID, userID, title, description, startTime)
-    if err != nil {
-        http.Error(w, fmt.Sprintf("Error updating story: %s", err), 500)
-        return
-    }
-
-    tmpl := template.Must(template.ParseFiles("app/templates/story-detail.html", "app/templates/spinner.html"))
-    err = tmpl.ExecuteTemplate(w, "story-detail-view", StoryViewPageData { Story: Story{
-        ID: storyID,
-        Title: title,
-        Description: description,
-        StartTime: time.Unix(startTime, 0).Format("02. 01. 2006 15:04"),
-        Creator: userName,
-        IsStoryOwner: true,
-    }})
     if err != nil {
         http.Error(w, fmt.Sprintf("Error building template: %s", err), 500)
     }
@@ -453,6 +402,9 @@ func StoryListHandler (w http.ResponseWriter, r *http.Request) {
 
 type CreateStoryPageData struct {
     StoryID int64
+    Title string
+    StartTime string
+    Description string
     Tasks []Task
 }
 
@@ -484,7 +436,6 @@ func CreateStoryPage (w http.ResponseWriter, r *http.Request) {
         return
     }
 
-
     result, err := db.Exec("INSERT INTO story (creator_id, status) VALUES($1, $2)", userID, 0)
     if err != nil {
         http.Error(w, fmt.Sprintf("Error creating story draft: %s", err), 500)
@@ -510,49 +461,73 @@ func CreateStoryPage (w http.ResponseWriter, r *http.Request) {
     }
 }
 
-func AddTaskToStoryHandler (w http.ResponseWriter, r *http.Request) {
+func createTaskToStoryHandler (r *http.Request) (Task, string, int) {
     vars := mux.Vars(r)
     storyID, err := strconv.ParseInt(vars["id"], 10, 64)
     if err != nil {
-        http.Error(w, fmt.Sprintf("Cannot parse value %s as integer: %s", vars["id"], err), 400)
-        return
+        return Task{}, fmt.Sprintf("Cannot parse value %s as integer: %s", vars["id"], err), 400
     }
     name := r.PostFormValue("name")
     description := r.PostFormValue("description")
     slots, err := strconv.ParseInt(r.PostFormValue("slots"), 10, 64)
     if err != nil {
-        http.Error(w, fmt.Sprintf("Cannot parse value %s as integer: %s", r.PostFormValue("slots"), err), 400)
-        return
+        return Task{}, fmt.Sprintf("Cannot parse value %s as integer: %s", r.PostFormValue("slots"), err), 400
     }
 
     db, err := OpenDB()
     if err != nil {
-        http.Error(w, fmt.Sprintf("Error connecting to database: %s", err), 500)
-        return
+        return Task{}, fmt.Sprintf("Error connecting to database: %s", err), 500
     }
     defer db.Close()
     _, _, err = auth.ValidateSession(db, r);
     if err != nil {
-        http.Error(w, "Cannot find valid session", 401)
-        return
+        return Task{}, "Cannot find valid session", 401
     }
 
     result, err := db.Exec("INSERT INTO task (story_id, name, description, slots) VALUES($1, $2, $3, $4)", storyID, name, description, slots)
     if err != nil {
-        http.Error(w, fmt.Sprintf("Error creating task: %s", err), 500)
-        return
+        return Task{}, fmt.Sprintf("Error creating task: %s", err), 500
     }
 
     id, err := result.LastInsertId()
     if err != nil {
-        http.Error(w, fmt.Sprintf("Error creating task: %s", err), 500)
-        return
+        return Task{}, fmt.Sprintf("Error creating task: %s", err), 500
     }
 
-    tmpl := template.Must(template.ParseFiles("app/templates/task-list-element.html"))
-    template.Must(tmpl.New("spinner").ParseFiles("app/templates/spinner.html"))
+    return  Task{
+        ID: id,
+        Name: name,
+        Description: description,
+        SlotsTotal: slots,
+        SlotsAssigned: 0,
+        AssignmentList: []Assignments{},
+        HasJoined: false,
+        IsStoryOwner: true,
+        IsUserLoggedIn: true,
+    }, "", 0
+}
 
-    err = tmpl.ExecuteTemplate(w, "task-list-element-base", Task{ID: id, Name: name, Description: description, SlotsTotal: slots, SlotsAssigned: 0 })
+func AddTaskToStoryFinalizeHandler (w http.ResponseWriter, r *http.Request) {
+    task, errorMsg, errorCode := createTaskToStoryHandler(r)
+    if errorCode != 0 {
+        http.Error(w, errorMsg, errorCode)
+    }
+
+    tmpl := template.Must(template.ParseFiles("app/templates/task-list-element.html", "app/templates/spinner.html"))
+    err := tmpl.ExecuteTemplate(w, "task-list-element-base", task)
+    if err != nil {
+        http.Error(w, fmt.Sprintf("Error building template: %s", err), 500)
+    }
+}
+
+func AddTaskToStoryHandler (w http.ResponseWriter, r *http.Request) {
+    task, errorMsg, errorCode := createTaskToStoryHandler(r)
+    if errorCode != 0 {
+        http.Error(w, errorMsg, errorCode)
+    }
+
+    tmpl := template.Must(template.ParseFiles("app/templates/task-list-element-view.html", "app/templates/task-list-element.html", "app/templates/spinner.html"))
+    err := tmpl.ExecuteTemplate(w, "task-list-element-view.html", task)
     if err != nil {
         http.Error(w, fmt.Sprintf("Error building template: %s", err), 500)
     }
@@ -799,54 +774,80 @@ func DeleteStoryTaskHandler (w http.ResponseWriter, r *http.Request) {
     }
 }
 
-func UpdateStory(db *sql.DB, storyID int64, userID int64, title string, description string, time int64) error {
+func updateStoryHandler (r *http.Request) (Story, string, int) {
+    vars := mux.Vars(r)
+    storyID, err := strconv.ParseInt(vars["id"], 10, 64)
+    if err != nil {
+        return Story{}, fmt.Sprintf("Cannot parse value %s as integer: %s", vars["id"], err), 400
+    }
+    db, err := OpenDB()
+    if err != nil {
+        return Story{}, fmt.Sprintf("Error connecting to database: %s", err), 500
+
+    }
+    defer db.Close()
+    title := r.PostFormValue("title")
+    description := r.PostFormValue("description")
+    startTime, err := strconv.ParseInt(r.PostFormValue("time"), 10, 64)
+    if err != nil {
+        return Story{}, fmt.Sprintf("Cannot parse value %s as integer: %s", r.PostFormValue("time"), err), 400
+    }
+    userID, userName, sessionErr := auth.ValidateSession(db, r)
+    if sessionErr != nil {
+        return Story{}, "Cannot find valid session", 401
+    }
+
     result, err := db.Exec(
         "UPDATE story SET title = $1, description = $2, start_time = $3, status = 1 WHERE id = $4 AND creator_id = $5",
-        title, description, time, storyID, userID,
+        title, description, startTime, storyID, userID,
     )
     if err != nil {
-        return err
+        return Story{}, fmt.Sprintf("Error updating story: %s", err), 500
     }
 
     rowsAffected, err := result.RowsAffected()
     if err != nil {
-        return err
+        return Story{}, fmt.Sprintf("Error updating story: %s", err), 500
     }
     if rowsAffected != 1 {
-        return errors.New("Error updating story")
+        return Story{}, fmt.Sprintf("Error updating story, incorrect numbers of rows affected: %d", rowsAffected), 500
     }
-    return nil
+    if err != nil {
+        return Story{}, fmt.Sprintf("Error updating story: %s", err), 500
+    }
+
+    return Story{
+        ID: storyID,
+        Title: title,
+        Description: description,
+        StartTime: time.Unix(startTime, 0).Format("02. 01. 2006 15:04"),
+        Creator: userName,
+        IsStoryOwner: true,
+    }, "", 0
+}
+
+type StoryViewPageData struct {
+    Story Story
+}
+
+func ChangeStoryHandler (w http.ResponseWriter, r *http.Request) {
+    story, errorString, errorCode := updateStoryHandler(r)
+    if errorCode != 0 {
+        http.Error(w, errorString, errorCode)
+        return
+    }
+
+    tmpl := template.Must(template.ParseFiles("app/templates/story-detail.html", "app/templates/spinner.html"))
+    err := tmpl.ExecuteTemplate(w, "story-detail-view", StoryViewPageData { Story: story })
+    if err != nil {
+        http.Error(w, fmt.Sprintf("Error building template: %s", err), 500)
+    }
 }
 
 func FinalizeCreateStoryHandler (w http.ResponseWriter, r *http.Request) {
-    vars := mux.Vars(r)
-    id, err := strconv.ParseInt(vars["id"], 10, 64)
-    if err != nil {
-        http.Error(w, fmt.Sprintf("Cannot parse value %s as integer: %s", vars["id"], err), 400)
-        return
-    }
-    db, err := OpenDB()
-    if err != nil {
-        http.Error(w, fmt.Sprintf("Error connecting to database: %s", err), 500)
-        return
-    }
-    defer db.Close()
-    userID, _, err := auth.ValidateSession(db, r);
-    if err != nil {
-        http.Error(w, "Cannot find valid session", 401)
-        return
-    }
-    title := r.PostFormValue("title")
-    description := r.PostFormValue("description")
-    time, err := strconv.ParseInt(r.PostFormValue("time"), 10, 64)
-    if err != nil {
-        http.Error(w, fmt.Sprintf("Cannot parse value %s as integer: %s", r.PostFormValue("time"), err), 400)
-        return
-    }
-
-    err = UpdateStory(db, id, userID, title, description, time)
-    if err != nil {
-        http.Error(w, fmt.Sprintf("Error updating story: %s", err), 500)
+    _, errorString, errorCode := updateStoryHandler(r)
+    if errorCode != 0 {
+        http.Error(w, errorString, errorCode)
         return
     }
 

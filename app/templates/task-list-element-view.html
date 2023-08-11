@@ -1,12 +1,10 @@
 {{template "task-list-element-base" .}}
 {{define "template-controls"}}
-    <div id="template-controls-{{.ID}}">
-        {{if .HasJoined }}
-            {{template "button-leave" .}}
-        {{else}}
-            {{if gt .SlotsTotal .SlotsAssigned}}
-                {{template "button-join" .}}
-            {{end}}
+    {{if .HasJoined }}
+        {{template "button-leave" .}}
+    {{else}}
+        {{if gt .SlotsTotal .SlotsAssigned}}
+            {{template "button-join" .}}
         {{end}}
-    </div>
+    {{end}}
 {{end}}
