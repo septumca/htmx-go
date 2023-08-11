@@ -1,10 +1,10 @@
 package main
 
 import (
-    "fmt"
     "log"
     "net/http"
 
+    "github.com/joho/godotenv"
     "github.com/gorilla/mux"
     _ "modernc.org/sqlite"
 
@@ -12,7 +12,10 @@ import (
 )
 
 func main() {
-    fmt.Println("Starting server at port 8000")
+    err := godotenv.Load(".env")
+    if err != nil {
+        log.Fatal("Cannot load environment variables")
+    }
 
     r := mux.NewRouter()
     r.HandleFunc("/", server.LandingPage).Methods("GET")

@@ -115,7 +115,6 @@ func IsPasswordMatching(db *sql.DB, username string, password string) (int64, er
 
 func Logout(db *sql.DB, r *http.Request) error {
     userID, _, err := ValidateSession(db, r)
-
     if err != nil {
         return err;
     }

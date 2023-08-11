@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -239,17 +238,20 @@ func StoryEditPageHandler (w http.ResponseWriter, r *http.Request) {
     vars := mux.Vars(r)
     storyID, err := strconv.ParseInt(vars["id"], 10, 64)
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Cannot parse value %s as integer: %s", vars["id"], err), 400)
+        return
     }
     db, err := OpenDB()
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error connecting to database: %s", err), 500)
+        return
     }
     defer db.Close()
 
     _, _, err = auth.ValidateSession(db, r);
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, "Cannot find valid session", 401)
+        return
     }
     row := db.QueryRow(`
         SELECT
@@ -269,7 +271,8 @@ func StoryEditPageHandler (w http.ResponseWriter, r *http.Request) {
 
     err = row.Scan(&id, &title, &descriptionOption, &startTime)
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error loading data from database: %s", err), 500)
+        return
     }
 
     description := ""
@@ -286,7 +289,7 @@ func StoryEditPageHandler (w http.ResponseWriter, r *http.Request) {
         StartTime: startTimeString,
     })
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error building template: %s", err), 500)
     }
 }
 
@@ -298,27 +301,32 @@ func ChangeStoryHandler (w http.ResponseWriter, r *http.Request) {
     vars := mux.Vars(r)
     storyID, err := strconv.ParseInt(vars["id"], 10, 64)
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Cannot parse value %s as integer: %s", vars["id"], err), 400)
+        return
     }
     db, err := OpenDB()
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error connecting to database: %s", err), 500)
+        return
     }
     defer db.Close()
     title := r.PostFormValue("title")
     description := r.PostFormValue("description")
     startTime, err := strconv.ParseInt(r.PostFormValue("time"), 10, 64)
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Cannot parse value %s as integer: %s", r.PostFormValue("time"), err), 400)
+        return
     }
-    userID, userName, sessionErr := auth.ValidateSession(db, r);
+    userID, userName, sessionErr := auth.ValidateSession(db, r)
     if sessionErr != nil {
-        log.Fatal(err)
+        http.Error(w, "Cannot find valid session", 401)
+        return
     }
 
     err = UpdateStory(db, storyID, userID, title, description, startTime)
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error updating story: %s", err), 500)
+        return
     }
 
     tmpl := template.Must(template.ParseFiles("app/templates/story-detail.html", "app/templates/spinner.html"))
@@ -331,7 +339,7 @@ func ChangeStoryHandler (w http.ResponseWriter, r *http.Request) {
         IsStoryOwner: true,
     }})
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error building template: %s", err), 500)
     }
 }
 
@@ -339,11 +347,13 @@ func StoryDetailHandler (w http.ResponseWriter, r *http.Request) {
     vars := mux.Vars(r)
     storyID, err := strconv.ParseInt(vars["id"], 10, 64)
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Cannot parse value %s as integer: %s", vars["id"], err), 400)
+        return
     }
     db, err := OpenDB()
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error connecting to database: %s", err), 500)
+        return
     }
     defer db.Close()
 
@@ -351,7 +361,8 @@ func StoryDetailHandler (w http.ResponseWriter, r *http.Request) {
 
     story, err := GetStoryData(db, storyID, userID)
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error getting story: %s", err), 500)
+        return
     }
     isUserLoggedIn := sessionErr == nil
     tasks, err := GetStoryTasks(db, storyID, userID, story.IsStoryOwner, isUserLoggedIn)
@@ -363,7 +374,7 @@ func StoryDetailHandler (w http.ResponseWriter, r *http.Request) {
         Tasks: tasks,
     })
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error building template: %s", err), 500)
     }
 }
 
@@ -377,7 +388,8 @@ func StoryListHandler (w http.ResponseWriter, r *http.Request) {
 
     db, err := OpenDB()
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error connecting to database: %s", err), 500)
+        return
     }
     defer db.Close()
 
@@ -396,7 +408,8 @@ func StoryListHandler (w http.ResponseWriter, r *http.Request) {
         WHERE story.status > 0
     `)
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error getting story list: %s", err), 500)
+        return
     }
     defer rows.Close()
 
@@ -410,7 +423,8 @@ func StoryListHandler (w http.ResponseWriter, r *http.Request) {
 
         err = rows.Scan(&id, &title, &creatorName, &creatorID, &descriptionOption, &startTimeOption)
         if err != nil {
-            log.Fatal(err)
+            http.Error(w, fmt.Sprintf("Error getting story entries: %s", err), 500)
+            return
         }
 
         description := ""
@@ -445,49 +459,54 @@ type CreateStoryPageData struct {
 func CreateStoryPage (w http.ResponseWriter, r *http.Request) {
     db, err := OpenDB()
     if err != nil {
-        http.Error(w, http.StatusText(500), 500)
+        http.Error(w, fmt.Sprintf("Error connecting to database: %s", err), 500)
         return
     }
     userID, _, err := auth.ValidateSession(db, r);
     if err != nil {
-        http.Error(w, http.StatusText(401), 401)
+        http.Error(w, "Cannot find valid session", 401)
         return
     }
 
     _, err = db.Exec("DELETE FROM assignment WHERE task_id IN (SELECT task.id FROM task JOIN story ON story.id = task.story_id AND story.creator_id = $1 AND status = 0)", userID)
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error cleaning up draft stories: %s", err), 500)
+        return
     }
     _, err = db.Exec("DELETE FROM task WHERE story_id IN (SELECT story.id FROM story WHERE creator_id = $1 AND status = 0)", userID)
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error cleaning up draft stories: %s", err), 500)
+        return
     }
     _, err = db.Exec("DELETE FROM story WHERE creator_id = $1 AND status = 0", userID)
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error cleaning up draft stories: %s", err), 500)
+        return
     }
 
 
     result, err := db.Exec("INSERT INTO story (creator_id, status) VALUES($1, $2)", userID, 0)
     if err != nil {
-        // http.Error(w, http.StatusText(500), 500)
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error creating story draft: %s", err), 500)
+        return
     }
 
     storyID, err := result.LastInsertId()
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error creating story draft: %s", err), 500)
+        return
     }
 
     tasks, err := GetTasks(db)
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error getting task: %s", err), 500)
+        return
     }
 
     tmpl := template.Must(template.ParseFiles("app/templates/create-story.html", "app/templates/spinner.html"))
     err = tmpl.Execute(w, CreateStoryPageData { StoryID: storyID, Tasks: tasks })
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error building template: %s", err), 500)
     }
 }
 
@@ -495,36 +514,39 @@ func AddTaskToStoryHandler (w http.ResponseWriter, r *http.Request) {
     vars := mux.Vars(r)
     storyID, err := strconv.ParseInt(vars["id"], 10, 64)
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Cannot parse value %s as integer: %s", vars["id"], err), 400)
+        return
     }
     name := r.PostFormValue("name")
     description := r.PostFormValue("description")
     slots, err := strconv.ParseInt(r.PostFormValue("slots"), 10, 64)
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Cannot parse value %s as integer: %s", r.PostFormValue("slots"), err), 400)
+        return
     }
 
     db, err := OpenDB()
     if err != nil {
-        http.Error(w, http.StatusText(500), 500)
+        http.Error(w, fmt.Sprintf("Error connecting to database: %s", err), 500)
         return
     }
     defer db.Close()
     _, _, err = auth.ValidateSession(db, r);
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, "Cannot find valid session", 401)
+        return
     }
 
     result, err := db.Exec("INSERT INTO task (story_id, name, description, slots) VALUES($1, $2, $3, $4)", storyID, name, description, slots)
     if err != nil {
-        // http.Error(w, http.StatusText(500), 500)
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error creating task: %s", err), 500)
+        return
     }
 
     id, err := result.LastInsertId()
     if err != nil {
-        http.Error(w, http.StatusText(500), 500)
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error creating task: %s", err), 500)
+        return
     }
 
     tmpl := template.Must(template.ParseFiles("app/templates/task-list-element.html"))
@@ -532,7 +554,7 @@ func AddTaskToStoryHandler (w http.ResponseWriter, r *http.Request) {
 
     err = tmpl.ExecuteTemplate(w, "task-list-element-base", Task{ID: id, Name: name, Description: description, SlotsTotal: slots, SlotsAssigned: 0 })
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error building template: %s", err), 500)
     }
 }
 
@@ -540,19 +562,21 @@ func ChangeStoryTaskAssignmentHandler (w http.ResponseWriter, r *http.Request) {
     vars := mux.Vars(r)
     taskID, err := strconv.ParseInt(vars["id"], 10, 64)
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Cannot parse value %s as integer: %s", vars["id"], err), 400)
+        return
     }
     action := r.PostFormValue("action")
 
     db, err := OpenDB()
     if err != nil {
-        http.Error(w, http.StatusText(500), 500)
+        http.Error(w, fmt.Sprintf("Error connecting to database: %s", err), 500)
         return
     }
     defer db.Close()
     userID, _, err := auth.ValidateSession(db, r);
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, "Cannot find valid session", 401)
+        return
     }
 
     var result sql.Result
@@ -562,15 +586,17 @@ func ChangeStoryTaskAssignmentHandler (w http.ResponseWriter, r *http.Request) {
         result, err = db.Exec("DELETE FROM assignment WHERE task_id = $1 AND assignee_id = $2", taskID, userID)
     }
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error changing task assignment: %s", err), 500)
+        return
     }
     rowsAffected, err := result.RowsAffected()
     if err != nil {
-        http.Error(w, http.StatusText(500), 500)
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error changing task assignment: %s", err), 500)
+        return
     }
     if rowsAffected != 1 {
-        log.Fatal(fmt.Errorf("Error action: %s task, rows affected: %d", action, rowsAffected))
+        http.Error(w, "Error changing task assignment: incorrect number of rows changes", 500)
+        return
     }
 
     task, err := GetSingleTask(db, taskID, userID)
@@ -579,7 +605,7 @@ func ChangeStoryTaskAssignmentHandler (w http.ResponseWriter, r *http.Request) {
     tmpl := template.Must(template.ParseFiles("app/templates/task-list-element-view.html", "app/templates/task-list-element.html", "app/templates/spinner.html"))
     err = tmpl.ExecuteTemplate(w, "task-list-element-view.html", task)
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error building template: %s", err), 500)
     }
 }
 
@@ -587,30 +613,33 @@ func ChangeStoryTaskViewHandler (w http.ResponseWriter, r *http.Request) {
     vars := mux.Vars(r)
     taskID, err := strconv.ParseInt(vars["id"], 10, 64)
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Cannot parse value %s as integer: %s", vars["id"], err), 400)
+        return
     }
 
     db, err := OpenDB()
     if err != nil {
-        http.Error(w, http.StatusText(500), 500)
+        http.Error(w, fmt.Sprintf("Error connecting to database: %s", err), 500)
         return
     }
     defer db.Close()
     userID, _, err := auth.ValidateSession(db, r);
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, "Cannot find valid session", 401)
+        return
     }
 
     task, err := GetSingleTask(db, taskID, userID)
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error getting task data: %s", err), 500)
+        return
     }
     task.IsUserLoggedIn = true
 
     tmpl := template.Must(template.ParseFiles("app/templates/task-list-element.html", "app/templates/spinner.html"))
     err = tmpl.ExecuteTemplate(w, "task-detail-edit", task)
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error building template: %s", err), 500)
     }
 }
 
@@ -618,11 +647,12 @@ func TaskDetailHandler (w http.ResponseWriter, r *http.Request) {
     vars := mux.Vars(r)
     taskID, err := strconv.ParseInt(vars["id"], 10, 64)
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Cannot parse value %s as integer: %s", vars["id"], err), 400)
+        return
     }
     db, err := OpenDB()
     if err != nil {
-        http.Error(w, http.StatusText(500), 500)
+        http.Error(w, fmt.Sprintf("Error connecting to database: %s", err), 500)
         return
     }
     defer db.Close()
@@ -630,14 +660,15 @@ func TaskDetailHandler (w http.ResponseWriter, r *http.Request) {
     userID, _, sessionErr := auth.ValidateSession(db, r);
     task, err := GetSingleTask(db, taskID, userID)
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error getting task data: %s", err), 500)
+        return
     }
     task.IsUserLoggedIn = sessionErr != nil
 
     tmpl := template.Must(template.ParseFiles("app/templates/task-list-element.html", "app/templates/spinner.html"))
     err = tmpl.ExecuteTemplate(w, "task-detail-view", task)
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error building template: %s", err), 500)
     }
 }
 
@@ -645,11 +676,13 @@ func ChangeTaskHandler (w http.ResponseWriter, r *http.Request) {
     vars := mux.Vars(r)
     taskID, err := strconv.ParseInt(vars["id"], 10, 64)
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Cannot parse value %s as integer: %s", vars["id"], err), 400)
+        return
     }
     db, err := OpenDB()
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error connecting to database: %s", err), 500)
+        return
     }
     defer db.Close()
 
@@ -657,11 +690,13 @@ func ChangeTaskHandler (w http.ResponseWriter, r *http.Request) {
     description := r.PostFormValue("description")
     slotsTotal, err := strconv.ParseInt(r.PostFormValue("slots"), 10, 64)
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Cannot parse value %s as integer: %s", r.PostFormValue("slots"), err), 400)
+        return
     }
     userID, _, sessionErr := auth.ValidateSession(db, r);
     if sessionErr != nil {
-        log.Fatal(err)
+        http.Error(w, "Cannot find valid session", 401)
+        return
     }
 
     result, err := db.Exec(
@@ -669,21 +704,25 @@ func ChangeTaskHandler (w http.ResponseWriter, r *http.Request) {
         name, description, slotsTotal, taskID,
     )
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error updating task data: %s", err), 500)
+        return
     }
 
     rowsAffected, err := result.RowsAffected()
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error updating task data: %s", err), 500)
+        return
     }
     if rowsAffected != 1 {
-        log.Fatal(errors.New("Error updating task"))
+        http.Error(w, fmt.Sprintf("Error updating task, incorrect numbers of rows affected: %d", rowsAffected), 500)
+        return
     }
 
     task, err := GetSingleTask(db, taskID, userID)
     task.IsUserLoggedIn = true
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error getting task data: %s", err), 500)
+        return
     }
 
     slotsToDelete := task.SlotsAssigned - task.SlotsTotal
@@ -698,20 +737,24 @@ func ChangeTaskHandler (w http.ResponseWriter, r *http.Request) {
             slotsToDelete,
         )
         if err != nil {
-            log.Fatal(err)
+            http.Error(w, fmt.Sprintf("Error updating tasks slots: %s", err), 500)
+            return
         }
 
         rowsAffected, err := result.RowsAffected()
         if err != nil {
-            log.Fatal(err)
+            http.Error(w, fmt.Sprintf("Error updating tasks slots: %s", err), 500)
+            return
         }
         if rowsAffected != slotsToDelete {
-            log.Fatal(fmt.Errorf("Error deleting assignments due to the slots change in task: deleted %d instead of %d", rowsAffected, slotsToDelete))
+            http.Error(w, fmt.Sprintf("Error deleting assignments due to the slots change in task: deleted %d instead of %d", rowsAffected, slotsToDelete), 500)
+            return
         }
 
         assignments, hasJoined, err := GetTaskAssignments(db, taskID, userID)
         if err != nil {
-            log.Fatal(err)
+            http.Error(w, fmt.Sprintf("Error getting assignments: %s", err), 500)
+            return
         }
         task.HasJoined = hasJoined
         task.AssignmentList = assignments
@@ -721,34 +764,38 @@ func ChangeTaskHandler (w http.ResponseWriter, r *http.Request) {
     tmpl := template.Must(template.ParseFiles("app/templates/task-list-element-view.html", "app/templates/task-list-element.html", "app/templates/spinner.html"))
     err = tmpl.ExecuteTemplate(w, "task-list-element-view.html", task)
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error building template: %s", err), 500)
     }
 }
 
 func DeleteStoryTaskHandler (w http.ResponseWriter, r *http.Request) {
     db, err := OpenDB()
     if err != nil {
-        http.Error(w, http.StatusText(500), 500)
+        http.Error(w, fmt.Sprintf("Error connecting to database: %s", err), 500)
         return
     }
     defer db.Close()
     vars := mux.Vars(r)
     id, err := strconv.ParseInt(vars["id"], 10, 64)
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Cannot parse value %s as integer: %s", vars["id"], err), 400)
+        return
     }
 
     result, err := db.Exec("DELETE FROM task WHERE id = $1", id)
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error deleting task: %s", err), 500)
+        return
     }
 
     rowsAffected, err := result.RowsAffected()
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error deleting task: %s", err), 500)
+        return
     }
     if rowsAffected != 1 {
-        log.Fatal(fmt.Errorf("Error deleting story task %d", rowsAffected))
+        http.Error(w, fmt.Sprintf("Error deleting story task, incorrect numbers of rows affected: %d", err), 500)
+        return
     }
 }
 
@@ -775,28 +822,32 @@ func FinalizeCreateStoryHandler (w http.ResponseWriter, r *http.Request) {
     vars := mux.Vars(r)
     id, err := strconv.ParseInt(vars["id"], 10, 64)
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Cannot parse value %s as integer: %s", vars["id"], err), 400)
+        return
     }
     db, err := OpenDB()
     if err != nil {
-        http.Error(w, http.StatusText(500), 500)
+        http.Error(w, fmt.Sprintf("Error connecting to database: %s", err), 500)
         return
     }
     defer db.Close()
     userID, _, err := auth.ValidateSession(db, r);
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, "Cannot find valid session", 401)
+        return
     }
     title := r.PostFormValue("title")
     description := r.PostFormValue("description")
     time, err := strconv.ParseInt(r.PostFormValue("time"), 10, 64)
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Cannot parse value %s as integer: %s", r.PostFormValue("time"), err), 400)
+        return
     }
 
     err = UpdateStory(db, id, userID, title, description, time)
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error updating story: %s", err), 500)
+        return
     }
 
     w.Header().Add("HX-Trigger", "reload-stories")
@@ -808,28 +859,31 @@ func DeleteStoryHandler(w http.ResponseWriter, r *http.Request) {
 
     db, err := OpenDB()
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error connecting to database: %s", err), 500)
+        return
     }
     defer db.Close()
 
     userID, _, err := auth.ValidateSession(db, r);
     if err != nil {
-        // http.Error(w, http.StatusText(500), 500)
-        log.Fatal(err)
+        http.Error(w, "Cannot find valid session", 401)
+        return
     }
 
     result, err := db.Exec("DELETE FROM story WHERE id = $1 and creator_id = $2", id, userID)
     if err != nil {
-        // http.Error(w, http.StatusText(500), 500)
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error deleting story: %s", err), 500)
+        return
     }
 
     rowsAffected, err := result.RowsAffected()
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error deleting story: %s", err), 500)
+        return
     }
     if rowsAffected != 1 {
-        log.Fatal(errors.New("Error deleting story"))
+        http.Error(w, fmt.Sprintf("Error deleting story, incorrect number of rows affected: %d", rowsAffected), 500)
+        return
     }
     w.Header().Add("HX-Redirect", "/")
 }

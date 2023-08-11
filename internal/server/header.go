@@ -2,15 +2,16 @@ package server
 
 import (
     "html/template"
-    "log"
     "net/http"
     "zmtwc/sk/internal/auth"
+    "fmt"
 )
 
 func HeaderHandler (w http.ResponseWriter, r *http.Request) {
     db, err := OpenDB()
     if err != nil {
-        log.Fatal(err)
+        http.Error(w, fmt.Sprintf("Error connecting to database: %s", err), 500)
+        return
     }
     defer db.Close()
     _, _, err = auth.ValidateSession(db, r);

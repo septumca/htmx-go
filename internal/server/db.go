@@ -1,11 +1,12 @@
 package server
 
 import (
+    "os"
     "database/sql"
 )
 
 func OpenDB() (*sql.DB, error) {
-    return sql.Open("sqlite", "app/local.db")
+    return sql.Open("sqlite", os.Getenv("DB_PATH"))
 }
 
 func GetTasks(db *sql.DB) ([]Task, error) {

@@ -8,29 +8,33 @@
     <script src="https://unpkg.com/htmx.org@1.9.2" integrity="sha384-L6OqL9pRWyyFU3+/bjdSri+iIphTN/bvYyM37tICVyOJkWZLpP2vGn6VUEXgzg6h" crossorigin="anonymous"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js" integrity="sha512-E8QSvWZ0eCLGk4km3hxSsNmGWbLtSCSUcewDQPQWZF6pEU8GlT8a5fF32wOl1i8ftdMhssTrF/OhyGWwonTcXA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
 </head>
-<body class="flex justify-center items-center h-screen">
-    <form id="register-form" hx-post="/register" hx-target="body" hx-indicator="#spinner" class="w-full p-6">
-        <div class="mb-2">
-            <label class="block mb-2 text-sm font-medium text-gray-900" for="username">Username</label>
-            <input required type="text" name="username" id="username" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" />
-        </div>
-        <div class="mb-3">
-            <label class="block mb-2 text-sm font-medium text-gray-900" for="password">Password</label>
-            <input required type="password" name="password" id="password" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" />
-        </div>
-
-        <button
-            type="submit"
-            class="rounded-lg text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 px-2.5 py-2 mr-2 mb-2 inline-flex items-center"
-        >
-            Register
-            <span id="spinner" class="htmx-indicator">
-                {{template "spinner-submit" "spinner"}}
-            </span>
-        </button>
-        <a href="/" class="font-medium text-blue-600 hover:underline">Cancel</a>
-    </form>
+<body class="grid place-items-center h-screen">
+    <div>
+        <form id="register-form" hx-post="/register" hx-target="body" hx-indicator="#spinner" class="w-full">
+            <div class="mb-2">
+                <label class="block mb-2 text-sm font-medium text-gray-900" for="username">Username</label>
+                <input required type="text" name="username" id="username" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" />
+            </div>
+            <div class="mb-3">
+                <label class="block mb-2 text-sm font-medium text-gray-900" for="password">Password</label>
+                <input required type="password" name="password" id="password" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" />
+            </div>
+            <div class="mb-2 g-recaptcha" data-sitekey="{{.}}"></div>
+            <button
+                type="submit"
+                form="register-form"
+                class="rounded-lg text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 px-2.5 py-2 mr-2 mb-2 inline-flex items-center"
+            >
+                Register
+                <span id="spinner" class="htmx-indicator">
+                    {{template "spinner-submit" "spinner"}}
+                </span>
+            </button>
+            <a href="/" class="font-medium text-blue-600 hover:underline">Cancel</a>
+        </form>
+    </div>
     <script>
         htmx.on('#register-form', 'htmx:configRequest', function(evt) {
             evt.detail.parameters.password = CryptoJS.SHA256(evt.detail.parameters.password).toString(CryptoJS.enc.Hex);
